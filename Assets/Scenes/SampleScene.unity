@@ -629,6 +629,59 @@ MonoBehaviour:
   turfDark:
     serializedVersion: 2
     rgba: 4280575034
+  layers:
+  - name: Topsoil
+    startDepth: 0
+    colorLight:
+      serializedVersion: 2
+      rgba: 4281358984
+    colorDark:
+      serializedVersion: 2
+      rgba: 4280830578
+    hardness: 1
+    speckle: 1
+  - name: Clay
+    startDepth: 6
+    colorLight:
+      serializedVersion: 2
+      rgba: 4281752734
+    colorDark:
+      serializedVersion: 2
+      rgba: 4281092224
+    hardness: 1.4
+    speckle: 1
+  - name: Gravel
+    startDepth: 12
+    colorLight:
+      serializedVersion: 2
+      rgba: 4283722884
+    colorDark:
+      serializedVersion: 2
+      rgba: 4282537064
+    hardness: 1.9
+    speckle: 3
+  - name: Hard
+    startDepth: 18
+    colorLight:
+      serializedVersion: 2
+      rgba: 4283060832
+    colorDark:
+      serializedVersion: 2
+      rgba: 4282007112
+    hardness: 2.6
+    speckle: 2
+  - name: Bedrock
+    startDepth: 25
+    colorLight:
+      serializedVersion: 2
+      rgba: 4284107850
+    colorDark:
+      serializedVersion: 2
+      rgba: 4282397232
+    hardness: 3.5
+    speckle: 2.5
+  layerWobble: 0.35
+  layerEdgeJitter: 0.25
 --- !u!212 &1471143408
 SpriteRenderer:
   serializedVersion: 2
@@ -747,6 +800,8 @@ MonoBehaviour:
   regenPerSecond: 5
   regenDelay: 0.5
   exhaustRecoverThreshold: 20
+  hardnessSpeedInfluence: 0.6
+  hardnessStaminaInfluence: 1
   sprite: {fileID: -4211702332014267518, guid: 18d169da16a1f8942b5e179b3a9e76ab, type: 3}
   visualScale: 1
 --- !u!4 &1890067546

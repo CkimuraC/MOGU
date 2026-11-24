@@ -5,11 +5,13 @@ public class StaminaHud : MonoBehaviour
 {
     public MoleController mole;
     ScanPulse scan;
+    DirtTerrain terrain;
 
 void Awake()
     {
         if (mole == null) mole = FindFirstObjectByType<MoleController>();
         if (mole != null) scan = mole.GetComponent<ScanPulse>();
+        terrain = FindFirstObjectByType<DirtTerrain>();
     }
 
 void OnGUI()
@@ -35,6 +37,20 @@ void OnGUI()
         GUI.Label(new Rect(frame.x, y, 600, 22),
             "Stamina " + Mathf.CeilToInt(mole.Stamina) + " / " + Mathf.CeilToInt(max));
         y += 20;
+
+        // 今いる地層(深いほど硬い)
+        if (terrain != null)
+        {
+            Vector2 mp = mole.transform.position;
+            bool onSurface = mp.y > terrain.TopY;
+            string layerName = onSurface ? "Surface" : terrain.LayerNameAt(mp);
+            if (!string.IsNullOrEmpty(layerName))
+            {
+                string hardText = onSurface ? "" : "  (hardness x" + terrain.HardnessAt(mp).ToString("0.0") + ")";
+                GUI.Label(new Rect(frame.x, y, 600, 22), "Layer: " + layerName + hardText);
+                y += 20;
+            }
+        }
 
         if (mole.BoostBonus > 0.5f)
         {

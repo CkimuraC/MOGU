@@ -31,6 +31,21 @@ public class DirtTerrain : MonoBehaviour
     public Color32 turfLight = new Color32(120, 168, 52, 255);
     public Color32 turfDark = new Color32(58, 100, 36, 255);
 
+    [Header("Layers (地層)")]
+    [Tooltip("土の上端からの深さで分けた地層。上から下へ並べる。空なら従来の1色グラデーション")]
+    public System.Collections.Generic.List<SoilLayer> layers = new System.Collections.Generic.List<SoilLayer>
+    {
+        new SoilLayer("Topsoil", 0f,  new Color32(136, 90, 48, 255),  new Color32(114, 74, 40, 255), 1.0f, 1.0f),
+        new SoilLayer("Clay",    6f,  new Color32(158, 92, 54, 255),  new Color32(128, 72, 44, 255), 1.4f, 1.0f),
+        new SoilLayer("Gravel",  12f, new Color32(132, 108, 84, 255), new Color32(104, 84, 66, 255), 1.9f, 3.0f),
+        new SoilLayer("Hard",    18f, new Color32(96, 82, 74, 255),   new Color32(72, 62, 58, 255),  2.6f, 2.0f),
+        new SoilLayer("Bedrock", 25f, new Color32(74, 76, 90, 255),   new Color32(48, 50, 64, 255),  3.5f, 2.5f)
+    };
+    [Tooltip("層の境目の波打ち(ユニット)。0でまっすぐ")]
+    public float layerWobble = 0.35f;
+    [Tooltip("層の境目のギザギザ(ユニット)")]
+    public float layerEdgeJitter = 0.25f;
+
     Texture2D tex;
     bool[] dug; // true = 掘削済み(空間)
     bool dirty;
@@ -60,21 +75,45 @@ void BuildTexture()
 
         var pixels = new Color32[widthPx * heightPx];
         int cell = Mathf.Max(1, noiseCellPx);
+        bool useLayers = layers != null && layers.Count > 0;
+        float totalDepth = heightPx / pixelsPerUnit;
+
+        // 層の境目の波打ち(列ごと)
+        var wob = new float[widthPx];
+        for (int x = 0; x < widthPx; x++) wob[x] = Wobble((x + 0.5f) / pixelsPerUnit);
+
         for (int y = 0; y < heightPx; y++)
         {
-            float depth = 1f - (float)y / (heightPx - 1); // 上=0, 下=1
-            Color baseCol = Color.Lerp(dirtLight, dirtDark, depth);
+            float depthRow = 1f - (float)y / (heightPx - 1); // 上=0, 下=1
             int fromTop = heightPx - 1 - y;
             for (int x = 0; x < widthPx; x++)
             {
                 float n = Hash(x / cell, y / cell, randomSeed);
                 float shade = 0.88f + 0.24f * n;
                 float speck = Hash(x / cell, y / cell, randomSeed + 7);
-                if (speck > 0.975f) shade *= 0.6f;      // 暗い粒
-                else if (speck < 0.015f) shade *= 1.25f; // 明るい粒
+
+                Color col;
+                float speckK = 1f;
+                if (useLayers)
+                {
+                    float depthU = (fromTop + 0.5f) / pixelsPerUnit + wob[x]
+                                 + (Hash(x / 2, y / 2, randomSeed + 99) - 0.5f) * layerEdgeJitter;
+                    int li = LayerIndexAtDepth(depthU);
+                    var L = layers[li];
+                    float end = li + 1 < layers.Count ? layers[li + 1].startDepth : totalDepth;
+                    float t = Mathf.Clamp01((depthU - L.startDepth) / Mathf.Max(0.01f, end - L.startDepth));
+                    col = Color.Lerp(L.colorLight, L.colorDark, t);
+                    speckK = Mathf.Max(0f, L.speckle);
+                }
+                else
+                {
+                    col = Color.Lerp(dirtLight, dirtDark, depthRow);
+                }
+
+                if (speck > 1f - 0.025f * speckK) shade *= 0.6f;       // 暗い粒
+                else if (speck < 0.015f * speckK) shade *= 1.25f;      // 明るい粒
 
                 // 最上部は草(縁は凸凹)
-                Color col = baseCol;
                 if (turfDepthPx > 0)
                 {
                     int depthHere = turfDepthPx - Mathf.FloorToInt(Hash(x / 3, 1234, randomSeed) * turfDepthPx * 0.5f);
@@ -134,6 +173,46 @@ public bool IsSolid(Vector2 world)
         if (y >= heightPx) return !topOpen; // 土の上端より上は空(topOpenのとき)
         return !dug[y * widthPx + x];
     }
+
+/// <summary>層の境目の波打ち(ユニット)。xは地形の左端からの距離(ユニット)。</summary>
+    public float Wobble(float xFromLeftUnits)
+    {
+        if (layerWobble <= 0f) return 0f;
+        float s = randomSeed * 0.001f;
+        return layerWobble * (0.6f * Mathf.Sin(xFromLeftUnits * 1.0f + s) + 0.4f * Mathf.Sin(xFromLeftUnits * 2.4f + 1.3f + s * 2f));
+    }
+
+    /// <summary>深さ(土の上端からのユニット)がどの層に当たるか。</summary>
+    public int LayerIndexAtDepth(float depthUnits)
+    {
+        if (layers == null || layers.Count == 0) return 0;
+        for (int i = layers.Count - 1; i >= 0; i--)
+            if (depthUnits >= layers[i].startDepth) return i;
+        return 0;
+    }
+
+    /// <summary>ワールド座標の場所がどの層か(層が未設定なら-1)。</summary>
+    public int LayerIndexAt(Vector2 world)
+    {
+        if (layers == null || layers.Count == 0) return -1;
+        float depth = TopY - world.y + Wobble(world.x - MinWorld.x);
+        return LayerIndexAtDepth(depth);
+    }
+
+    /// <summary>ワールド座標の場所の土の硬さ(層が未設定なら1)。</summary>
+    public float HardnessAt(Vector2 world)
+    {
+        int i = LayerIndexAt(world);
+        return i < 0 ? 1f : Mathf.Max(0.01f, layers[i].hardness);
+    }
+
+    /// <summary>ワールド座標の場所の層の名前(層が未設定なら空文字)。</summary>
+    public string LayerNameAt(Vector2 world)
+    {
+        int i = LayerIndexAt(world);
+        return i < 0 ? "" : layers[i].name;
+    }
+
 
     /// <summary>円形ブラシで土を削る。新たに削れたピクセル数を返す。</summary>
     public int Dig(Vector2 world, float radiusPx)

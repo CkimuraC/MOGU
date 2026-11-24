@@ -43,6 +43,14 @@ public class MoleController : MonoBehaviour
     [Tooltip("スタミナ切れ後、この量まで回復するまで掘れない(0で無効)。ガクガク進むのを防ぐ")]
     public float exhaustRecoverThreshold = 20f;
 
+    [Header("Hardness (地層の硬さ)")]
+    [Range(0f, 1f)]
+    [Tooltip("硬さが掘る速さに与える影響。0=影響なし、1=硬さ2倍で速さが半分")]
+    public float hardnessSpeedInfluence = 0.6f;
+    [Range(0f, 1f)]
+    [Tooltip("硬さがスタミナ消費に与える影響。0=影響なし、1=硬さ2倍で消費も2倍")]
+    public float hardnessStaminaInfluence = 1f;
+
     [Header("Visual")]
     public Sprite sprite;
     public float visualScale = 1f;
@@ -218,11 +226,16 @@ Vector2 Step(Vector2 pos, Vector2 dir, float dt, bool digHeld, ref bool dugThisF
         // 土に当たった:掘削ボタン+スタミナがあれば削って進む(通常より遅い)
         if (digHeld && !Exhausted && Stamina > 0f)
         {
-            Vector2 target = pos + dir * digSpeed * dt;
+            // 掘り進む先の土の硬さ(深い層ほど硬い)
+            float hard = terrain.HardnessAt(pos + dir * BodyRadiusUnits);
+            float speedMul = 1f / Mathf.Lerp(1f, hard, hardnessSpeedInfluence);
+            float costMul = Mathf.Lerp(1f, hard, hardnessStaminaInfluence);
+
+            Vector2 target = pos + dir * digSpeed * speedMul * dt;
             if (!ObstacleBlocked(target)) // 障害物の中へは掘り進めない
             {
                 int newPixels = terrain.Dig(target, BrushRadiusPx);
-                Stamina = Mathf.Max(0f, Stamina - newPixels * staminaPerPixel);
+                Stamina = Mathf.Max(0f, Stamina - newPixels * staminaPerPixel * costMul);
                 if (newPixels > 0) dugThisFrame = true;
                 if (Stamina <= 0f && exhaustRecoverThreshold > 0f) Exhausted = true;
                 return target;
