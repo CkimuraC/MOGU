@@ -100,7 +100,19 @@ public class MoleController : MonoBehaviour
         if (alsoFill) Stamina = Mathf.Min(MaxStaminaCurrent, Stamina + amount);
     }
 
-    const float MaxStepPx = 3f; // 1回の判定で進む最大距離(px)。フレーム落ち時のすり抜け防止
+    const float MaxStepPx = 3f;
+
+    // ---- 感情のかけら(EmotionEffects)による補正。付いていなければ全て等倍 ----
+    EmotionEffects effects;
+    EmotionEffects Fx { get { if (effects == null) effects = GetComponent<EmotionEffects>(); return effects; } }
+    float MoveMul { get { return Fx != null ? Fx.MoveSpeedMul : 1f; } }
+    float DigMul { get { return Fx != null ? Fx.DigSpeedMul : 1f; } }
+    float CostMul { get { return Fx != null ? Fx.StaminaCostMul : 1f; } }
+    float RegenBonus { get { return Fx != null ? Fx.RegenBonusPerSecond : 0f; } }
+    /// <summary>掘削力。基本は1、「怒り」で+1。地層の Min Dig Power 以上でないと掘れない。</summary>
+    public float DigPower { get { return 1f + (Fx != null ? Fx.DigPowerBonus : 0f); } }
+    /// <summary>硬すぎて掘れなかった時刻(画面の通知用)</summary>
+    public float HardBlockedUntil { get; private set; } // 1回の判定で進む最大距離(px)。フレーム落ち時のすり抜け防止
 
     Transform visual;
     int facing = 1;
@@ -186,7 +198,7 @@ void Update()
             Vector2 pos = transform.position;
 
             // 1フレームの移動を細かく分割して判定(すり抜け・引っかかり対策)
-            float maxSpeed = Mathf.Max(moveSpeed, digSpeed);
+            float maxSpeed = Mathf.Max(moveSpeed * MoveMul, digSpeed * DigMul);
             int steps = Mathf.Max(1, Mathf.CeilToInt(maxSpeed * dt * terrain.pixelsPerUnit / MaxStepPx));
             float sdt = dt / steps;
             for (int i = 0; i < steps; i++)
@@ -204,6 +216,10 @@ void Update()
             if (idleTimer >= regenDelay && regenPerSecond > 0f)
                 Stamina = Mathf.Min(MaxStaminaCurrent, Stamina + regenPerSecond * dt);
         }
+
+        // 感情(安心)による継続回復(掘っていても回復する)
+        float bonus = RegenBonus;
+        if (bonus > 0f) Stamina = Mathf.Min(MaxStaminaCurrent, Stamina + bonus * dt);
     }
 
     void TickBoosts(float dt)
@@ -220,30 +236,41 @@ void Update()
 Vector2 Step(Vector2 pos, Vector2 dir, float dt, bool digHeld, ref bool dugThisFrame)
     {
         // 空いていれば通常速度で進む(既存トンネル内:スタミナ消費なし)
-        Vector2 free = pos + dir * moveSpeed * dt;
+        float move = moveSpeed * MoveMul;
+        Vector2 free = pos + dir * move * dt;
         if (!Blocked(free)) return free;
 
         // 土に当たった:掘削ボタン+スタミナがあれば削って進む(通常より遅い)
         if (digHeld && !Exhausted && Stamina > 0f)
         {
-            // 掘り進む先の土の硬さ(深い層ほど硬い)
-            float hard = terrain.HardnessAt(pos + dir * BodyRadiusUnits);
-            float speedMul = 1f / Mathf.Lerp(1f, hard, hardnessSpeedInfluence);
-            float costMul = Mathf.Lerp(1f, hard, hardnessStaminaInfluence);
+            // 掘り進む先(ブラシの先端)の層
+            Vector2 front = pos + dir * (BrushRadiusPx / terrain.pixelsPerUnit);
 
-            Vector2 target = pos + dir * digSpeed * speedMul * dt;
-            if (!ObstacleBlocked(target)) // 障害物の中へは掘り進めない
+            if (terrain.MinDigPowerAt(front) > DigPower + 0.001f)
             {
-                int newPixels = terrain.Dig(target, BrushRadiusPx);
-                Stamina = Mathf.Max(0f, Stamina - newPixels * staminaPerPixel * costMul);
-                if (newPixels > 0) dugThisFrame = true;
-                if (Stamina <= 0f && exhaustRecoverThreshold > 0f) Exhausted = true;
-                return target;
+                // 掘削力が足りず、硬すぎて掘れない
+                HardBlockedUntil = Time.time + 0.3f;
+            }
+            else
+            {
+                float hard = terrain.HardnessAt(front);
+                float speedMul = DigMul / Mathf.Lerp(1f, hard, hardnessSpeedInfluence);
+                float costMul = Mathf.Lerp(1f, hard, hardnessStaminaInfluence) * CostMul;
+
+                Vector2 target = pos + dir * digSpeed * speedMul * dt;
+                if (!ObstacleBlocked(target)) // 障害物の中へは掘り進めない
+                {
+                    int newPixels = terrain.Dig(target, BrushRadiusPx);
+                    Stamina = Mathf.Max(0f, Stamina - newPixels * staminaPerPixel * costMul);
+                    if (newPixels > 0) dugThisFrame = true;
+                    if (Stamina <= 0f && exhaustRecoverThreshold > 0f) Exhausted = true;
+                    return target;
+                }
             }
         }
 
         // 掘れない/障害物:壁沿いに滑る
-        return Slide(pos, dir, moveSpeed * dt);
+        return Slide(pos, dir, move * dt);
     }
 
     /// <summary>進行方向を左右に少しずつ曲げて、空いている方向へ進む。</summary>

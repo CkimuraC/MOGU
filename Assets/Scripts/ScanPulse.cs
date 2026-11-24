@@ -32,6 +32,7 @@ public class ScanPulse : MonoBehaviour
         public Vector2 origin;
         public float radius;
         public float age;
+        public float maxRadius;
     }
     readonly List<ScanLight> lights = new List<ScanLight>();
     public IReadOnlyList<ScanLight> Lights => lights;
@@ -48,6 +49,9 @@ public class ScanPulse : MonoBehaviour
     bool active;
     float radius;
     Vector2 origin;
+    float activeMax; // 今回のスキャンの最大半径(感情の効果込み)
+    EmotionEffects fx;
+    EmotionEffects Fx { get { if (fx == null) fx = GetComponent<EmotionEffects>(); return fx; } }
     readonly HashSet<Detectable> hit = new HashSet<Detectable>();
 
     void Awake()
@@ -83,22 +87,26 @@ void Update()
         {
             var l = lights[i];
             l.age += dt;
-            l.radius = Mathf.Min(maxRadius, l.radius + expandSpeed * dt);
+            l.radius = Mathf.Min(l.maxRadius, l.radius + expandSpeed * dt);
             if (l.age >= revealDuration) lights.RemoveAt(i);
         }
 
         if (!active) return;
 
-        radius = Mathf.Min(maxRadius, radius + expandSpeed * dt);
+        radius = Mathf.Min(activeMax, radius + expandSpeed * dt);
 
-        // 波が届いたものを見えるようにする
+        // 波が届いたものを見えるようにする(特殊な空間は好奇心で遠くまで届く)
+        float specialMul = Fx != null ? Fx.SpecialSenseMul : 1f;
         var list = Detectable.All;
         float r2 = radius * radius;
+        float sr = radius * specialMul;
+        float sr2 = sr * sr;
         for (int i = 0; i < list.Count; i++)
         {
             var d = list[i];
             if (d == null || hit.Contains(d)) continue;
-            if (((Vector2)d.transform.position - origin).sqrMagnitude <= r2)
+            float d2 = ((Vector2)d.transform.position - origin).sqrMagnitude;
+            if (d2 <= (d.isSpecialSpace ? sr2 : r2))
             {
                 hit.Add(d);
                 d.Reveal(revealDuration);
@@ -106,7 +114,7 @@ void Update()
         }
 
         // 波の見た目
-        float t = radius / maxRadius;
+        float t = radius / Mathf.Max(0.01f, activeMax);
         ring.position = new Vector3(origin.x, origin.y, 0f);
         float s = Mathf.Max(0.02f, radius) / RingFrac;
         ring.localScale = new Vector3(s, s, 1f);
@@ -114,7 +122,7 @@ void Update()
         c.a = Mathf.Lerp(1f, 0f, Mathf.Pow(t, 1.5f));
         ringSr.color = c;
 
-        if (radius >= maxRadius)
+        if (radius >= activeMax)
         {
             active = false;
             ring.gameObject.SetActive(false);
@@ -126,11 +134,12 @@ public bool TryScan()
         if (active || CooldownLeft > 0f) return false;
         origin = transform.position;
         radius = 0f;
+        activeMax = maxRadius * (Fx != null ? Fx.ScanRangeMul : 1f); // 恐れで範囲アップ
         hit.Clear();
         active = true;
         CooldownLeft = cooldown;
         ring.gameObject.SetActive(true);
-        lights.Add(new ScanLight { origin = origin, radius = 0f, age = 0f });
+        lights.Add(new ScanLight { origin = origin, radius = 0f, age = 0f, maxRadius = activeMax });
         return true;
     }
 

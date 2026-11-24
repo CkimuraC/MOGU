@@ -108,5 +108,52 @@ public static class MoleInput
 #endif
     }
 
+/// <summary>感情のかけらを食べる(キーボード1〜6)。押された番号(0〜5)、なければ-1</summary>
+    public static int ShardEatIndex()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        if (k == null) return -1;
+        if (k.digit1Key.wasPressedThisFrame) return 0;
+        if (k.digit2Key.wasPressedThisFrame) return 1;
+        if (k.digit3Key.wasPressedThisFrame) return 2;
+        if (k.digit4Key.wasPressedThisFrame) return 3;
+        if (k.digit5Key.wasPressedThisFrame) return 4;
+        if (k.digit6Key.wasPressedThisFrame) return 5;
+        return -1;
+#else
+        for (int i = 0; i < 6; i++)
+            if (Input.GetKeyDown(KeyCode.Alpha1 + i)) return i;
+        return -1;
+#endif
+    }
+
+    /// <summary>食べるかけらの選択を切り替える。Tab / L1</summary>
+    public static bool ShardCyclePressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        if (k != null && k.tabKey.wasPressedThisFrame) return true;
+        var g = Gamepad.current;
+        return g != null && g.leftShoulder.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.Tab);
+#endif
+    }
+
+    /// <summary>選択中のかけらを食べる。E / ○</summary>
+    public static bool ShardEatSelectedPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        if (k != null && k.eKey.wasPressedThisFrame) return true;
+        var g = Gamepad.current;
+        return g != null && g.buttonEast.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.E);
+#endif
+    }
+
+
 
 }

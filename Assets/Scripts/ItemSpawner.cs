@@ -8,7 +8,7 @@ using UnityEngine;
 /// </summary>
 public class ItemSpawner : MonoBehaviour
 {
-    enum Kind { Heal, Star, Obstacle }
+    enum Kind { Heal, Star, Obstacle, Shard }
 
     [Header("References (空なら自動検索)")]
     public DirtTerrain terrain;
@@ -18,6 +18,8 @@ public class ItemSpawner : MonoBehaviour
     public int healCount = 12;
     public int starCount = 5;
     public int obstacleCount = 14;
+    [Tooltip("感情のかけらの数(種類は6種からランダム。地層とは無関係に散らばる)")]
+    public int shardCount = 28;
     [Tooltip("各種類の1個目を、モグラの近く(3〜6ユニット)に置く。動作確認用")]
     public bool placeOneNearStart = true;
     public int seed = 777;
@@ -26,6 +28,14 @@ public class ItemSpawner : MonoBehaviour
     public float minDistanceFromMole = 4f;
     public float minSpacing = 2.2f;
     public float edgeMargin = 2f;
+
+    [Header("Depth Density (深さと出現率)")]
+    [Tooltip("食料(●)の出やすさ。横軸=深さ(0=地表〜1=最深)、縦軸=出やすさ(0〜1)。深いほど少ない")]
+    public AnimationCurve healDensityByDepth = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.2f));
+    [Tooltip("感情のかけらの出やすさ。深いほど多い")]
+    public AnimationCurve shardDensityByDepth = new AnimationCurve(new Keyframe(0f, 0.15f), new Keyframe(1f, 1f));
+    [Tooltip("本番画像の差し替え用。順番は 喜び/怒り/悲しみ/恐れ/安心/好奇心。空なら仮画像")]
+    public Sprite[] shardSpriteOverrides = new Sprite[EmotionInfo.Count];
 
     [Header("Effects")]
     public float healAmount = 60f;
@@ -45,7 +55,7 @@ public class ItemSpawner : MonoBehaviour
     public Sprite starSprite;
     public Sprite obstacleSprite;
 
-    void Start()
+void Start()
     {
         if (terrain == null) terrain = FindFirstObjectByType<DirtTerrain>();
         if (mole == null) mole = FindFirstObjectByType<MoleController>();
@@ -59,27 +69,32 @@ public class ItemSpawner : MonoBehaviour
         var placed = new List<Vector2>();
         Spawn(Kind.Heal, healCount, rng, placed);
         Spawn(Kind.Star, starCount, rng, placed);
+        Spawn(Kind.Shard, shardCount, rng, placed);
         Spawn(Kind.Obstacle, obstacleCount, rng, placed);
     }
 
-    void Spawn(Kind kind, int count, System.Random rng, List<Vector2> placed)
+void Spawn(Kind kind, int count, System.Random rng, List<Vector2> placed)
     {
+        // 食料は深いほど少なく、感情のかけらは深いほど多い
+        AnimationCurve curve = kind == Kind.Heal ? healDensityByDepth : (kind == Kind.Shard ? shardDensityByDepth : null);
+
         for (int i = 0; i < count; i++)
         {
             bool near = placeOneNearStart && i == 0;
-            if (!FindSpot(rng, near, placed, out Vector2 p)) continue;
+            if (!FindSpot(rng, near, placed, curve, out Vector2 p)) continue;
             placed.Add(p);
-            Create(kind, p);
+            int emotion = kind == Kind.Shard ? rng.Next(EmotionInfo.Count) : 0; // 地層に関係なくランダム
+            Create(kind, p, emotion);
         }
     }
 
-    bool FindSpot(System.Random rng, bool near, List<Vector2> placed, out Vector2 pos)
+bool FindSpot(System.Random rng, bool near, List<Vector2> placed, AnimationCurve density, out Vector2 pos)
     {
         Vector2 origin = mole.transform.position;
         Rect r = terrain.WorldRect;
         float minMole = near ? 2.5f : minDistanceFromMole;
 
-        for (int t = 0; t < 80; t++)
+        for (int t = 0; t < 300; t++)
         {
             Vector2 p;
             if (near)
@@ -93,6 +108,13 @@ public class ItemSpawner : MonoBehaviour
                 p = new Vector2(
                     Mathf.Lerp(r.xMin + edgeMargin, r.xMax - edgeMargin, (float)rng.NextDouble()),
                     Mathf.Lerp(r.yMin + edgeMargin, r.yMax - edgeMargin, (float)rng.NextDouble()));
+
+                // 深さに応じた出やすさ(密度の高い深さほど採用されやすい)
+                if (density != null)
+                {
+                    float depth01 = Mathf.Clamp01((terrain.TopY - p.y) / terrain.WorldSize.y);
+                    if ((float)rng.NextDouble() > density.Evaluate(depth01)) continue;
+                }
             }
 
             if (p.x < r.xMin + edgeMargin || p.x > r.xMax - edgeMargin ||
@@ -111,9 +133,9 @@ public class ItemSpawner : MonoBehaviour
         return false;
     }
 
-void Create(Kind kind, Vector2 p)
+void Create(Kind kind, Vector2 p, int emotion)
     {
-        var go = new GameObject(kind.ToString());
+        var go = new GameObject(kind == Kind.Shard ? "Shard_" + (EmotionType)emotion : kind.ToString());
         go.transform.SetParent(transform, false);
         go.transform.position = p;
 
@@ -139,6 +161,17 @@ void Create(Kind kind, Vector2 p)
                 s.boostAlsoFills = starAlsoFills;
                 marker = new Color(1f, 0.88f, 0.25f);
                 break;
+            case Kind.Shard:
+                {
+                    var et = (EmotionType)emotion;
+                    bool hasOverride = shardSpriteOverrides != null && emotion < shardSpriteOverrides.Length && shardSpriteOverrides[emotion] != null;
+                    sr.sprite = hasOverride ? shardSpriteOverrides[emotion] : ShardSprites.Get(et, terrain.pixelsPerUnit);
+                    var sh = go.AddComponent<ItemPickup>();
+                    sh.kind = ItemKind.Shard;
+                    sh.emotion = et;
+                    marker = EmotionInfo.ColorOf(et);
+                    break;
+                }
             case Kind.Obstacle:
                 sr.sprite = obstacleSprite;
                 var o = go.AddComponent<Obstacle>();

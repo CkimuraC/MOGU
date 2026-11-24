@@ -13,6 +13,8 @@ public class Detectable : MonoBehaviour
     public Color markerColor = Color.white;
     [Tooltip("見つかったとき、画面外にいたら画面の端に方向マーカーを出す")]
     public bool showMarker = true;
+    [Tooltip("隠された空洞など「特殊な空間」。好奇心の効果で、より遠くから見つかる")]
+    public bool isSpecialSpace = false;
     [Tooltip("消える前にフェードアウトする時間(秒)")]
     public float fadeOutTime = 1f;
     [Tooltip("見つかった瞬間の拡大演出")]

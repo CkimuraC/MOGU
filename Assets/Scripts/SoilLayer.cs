@@ -24,6 +24,9 @@ public class SoilLayer
     [Tooltip("土の中の粒(暗い点・明るい点)の多さ。1=基準")]
     public float speckle = 1f;
 
+    [Tooltip("この層を掘るのに必要な掘削力。モグラの基本の掘削力は1で、「怒り」を食べると+1になる。0なら誰でも掘れる")]
+    public float minDigPower = 0f;
+
     public SoilLayer() { }
 
     public SoilLayer(string name, float startDepth, Color32 light, Color32 dark, float hardness, float speckle)
