@@ -23,6 +23,14 @@ public class DirtTerrain : MonoBehaviour
     public int noiseCellPx = 2;
     public int randomSeed = 12345;
 
+    [Header("Surface (地表)")]
+    [Tooltip("true: 土の上端が開いていて、掘り抜くと地上に出られる")]
+    public bool topOpen = true;
+    [Tooltip("土の最上部を草の色にする厚み(px)。0で無効")]
+    public int turfDepthPx = 10;
+    public Color32 turfLight = new Color32(120, 168, 52, 255);
+    public Color32 turfDark = new Color32(58, 100, 36, 255);
+
     Texture2D tex;
     bool[] dug; // true = 掘削済み(空間)
     bool dirty;
@@ -31,6 +39,8 @@ public class DirtTerrain : MonoBehaviour
     public Vector2 WorldSize => new Vector2(widthPx, heightPx) / pixelsPerUnit;
     public Vector2 MinWorld => (Vector2)transform.position - WorldSize * 0.5f;
     public Rect WorldRect => new Rect(MinWorld, WorldSize);
+    /// <summary>土の上端のワールドY(ここから上が地上)</summary>
+    public float TopY => MinWorld.y + WorldSize.y;
 
     void Awake()
     {
@@ -38,7 +48,7 @@ public class DirtTerrain : MonoBehaviour
         BuildBackground();
     }
 
-    void BuildTexture()
+void BuildTexture()
     {
         dug = new bool[widthPx * heightPx];
         tex = new Texture2D(widthPx, heightPx, TextureFormat.RGBA32, false)
@@ -54,6 +64,7 @@ public class DirtTerrain : MonoBehaviour
         {
             float depth = 1f - (float)y / (heightPx - 1); // 上=0, 下=1
             Color baseCol = Color.Lerp(dirtLight, dirtDark, depth);
+            int fromTop = heightPx - 1 - y;
             for (int x = 0; x < widthPx; x++)
             {
                 float n = Hash(x / cell, y / cell, randomSeed);
@@ -61,7 +72,17 @@ public class DirtTerrain : MonoBehaviour
                 float speck = Hash(x / cell, y / cell, randomSeed + 7);
                 if (speck > 0.975f) shade *= 0.6f;      // 暗い粒
                 else if (speck < 0.015f) shade *= 1.25f; // 明るい粒
-                Color c = baseCol * shade;
+
+                // 最上部は草(縁は凸凹)
+                Color col = baseCol;
+                if (turfDepthPx > 0)
+                {
+                    int depthHere = turfDepthPx - Mathf.FloorToInt(Hash(x / 3, 1234, randomSeed) * turfDepthPx * 0.5f);
+                    if (fromTop < depthHere)
+                        col = Color.Lerp(turfLight, turfDark, fromTop / (float)Mathf.Max(1, turfDepthPx));
+                }
+
+                Color c = col * shade;
                 pixels[y * widthPx + x] = new Color32(
                     (byte)Mathf.Clamp(c.r * 255f, 0, 255),
                     (byte)Mathf.Clamp(c.g * 255f, 0, 255),
@@ -104,12 +125,13 @@ public class DirtTerrain : MonoBehaviour
     }
 
     /// <summary>ワールド座標が土(固体)かどうか。範囲外は固体扱い。</summary>
-    public bool IsSolid(Vector2 world)
+public bool IsSolid(Vector2 world)
     {
         Vector2 p = (world - MinWorld) * pixelsPerUnit;
         int x = Mathf.FloorToInt(p.x);
         int y = Mathf.FloorToInt(p.y);
-        if (x < 0 || y < 0 || x >= widthPx || y >= heightPx) return true;
+        if (x < 0 || y < 0 || x >= widthPx) return true;
+        if (y >= heightPx) return !topOpen; // 土の上端より上は空(topOpenのとき)
         return !dug[y * widthPx + x];
     }
 
@@ -121,7 +143,7 @@ public class DirtTerrain : MonoBehaviour
         int x0 = Mathf.Max(b, Mathf.FloorToInt(p.x - radiusPx));
         int x1 = Mathf.Min(widthPx - 1 - b, Mathf.CeilToInt(p.x + radiusPx));
         int y0 = Mathf.Max(b, Mathf.FloorToInt(p.y - radiusPx));
-        int y1 = Mathf.Min(heightPx - 1 - b, Mathf.CeilToInt(p.y + radiusPx));
+        int y1 = Mathf.Min(heightPx - 1 - (topOpen ? 0 : b), Mathf.CeilToInt(p.y + radiusPx)); // topOpenなら上端も掘れる
         if (x0 > x1 || y0 > y1) return 0;
 
         float r2 = radiusPx * radiusPx;

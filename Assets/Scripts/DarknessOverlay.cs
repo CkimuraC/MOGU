@@ -36,6 +36,14 @@ public class DarknessOverlay : MonoBehaviour
     [Tooltip("暗闇画像の1マスが地形の何pxか。大きいほど軽いが粗くなる")]
     public int cellPx = 4;
     public Color darkColor = Color.black;
+
+    [Header("Surface Light (地表からの光)")]
+    [Tooltip("土の上端からこの深さまでは完全に明るい(ユニット)")]
+    public float surfaceLightFull = 0.3f;
+    [Tooltip("土の上端からこの深さで真っ暗になる(ユニット)。0で無効")]
+    public float surfaceLightDepth = 2.5f;
+
+    float topY;
     public int sortingOrder = 8; // 地形(0)・アイテム(5)の上、モグラ(10)の下
 
     DirtTerrain terrain;
@@ -62,6 +70,7 @@ public class DarknessOverlay : MonoBehaviour
         cellPx = Mathf.Max(1, cellPx);
         cellWorld = cellPx / terrain.pixelsPerUnit;
         minWorld = terrain.MinWorld;
+        topY = terrain.TopY;
         w = Mathf.CeilToInt(terrain.widthPx / (float)cellPx);
         h = Mathf.CeilToInt(terrain.heightPx / (float)cellPx);
 
@@ -69,6 +78,16 @@ public class DarknessOverlay : MonoBehaviour
         dark.a = 255;
         pixels = new Color32[w * h];
         for (int i = 0; i < pixels.Length; i++) pixels[i] = dark;
+
+        // 地表付近は最初から明るくしておく
+        for (int y = 0; y < h; y++)
+        {
+            float day = Daylight(minWorld.y + (y + 0.5f) * cellWorld);
+            if (day <= 0f) continue;
+            byte al = (byte)Mathf.Clamp(Mathf.RoundToInt((1f - day) * 255f), 0, 255);
+            var c = new Color32(dark.r, dark.g, dark.b, al);
+            for (int x = 0; x < w; x++) pixels[y * w + x] = c;
+        }
 
         tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
         {
@@ -135,6 +154,7 @@ public class DarknessOverlay : MonoBehaviour
                 // モグラの光
                 float dm = Mathf.Sqrt((px - mp.x) * (px - mp.x) + (py - mp.y) * (py - mp.y));
                 vis = Mathf.Max(vis, 1f - Smooth(lightInnerRadius, lightOuterRadius, dm));
+                vis = Mathf.Max(vis, Daylight(py)); // 地表からの光
 
                 // スキャンの光(広がる円。時間とともにゆっくり暗くなる)
                 if (lights != null)
@@ -170,6 +190,15 @@ public class DarknessOverlay : MonoBehaviour
         x1 = Mathf.CeilToInt((center.x + radius - minWorld.x) / cellWorld) + 1;
         y1 = Mathf.CeilToInt((center.y + radius - minWorld.y) / cellWorld) + 1;
     }
+
+/// <summary>地表からの光(0〜1)。土の上端に近いほど明るい。</summary>
+    float Daylight(float worldY)
+    {
+        if (surfaceLightDepth <= 0f) return 0f;
+        float depth = topY - worldY; // 上端より上は負 → 完全に明るい
+        return 1f - Smooth(surfaceLightFull, surfaceLightDepth, depth);
+    }
+
 
     static float Smooth(float a, float b, float v)
     {

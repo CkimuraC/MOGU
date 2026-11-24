@@ -146,12 +146,16 @@ bool Blocked(Vector2 center)
         return false;
     }
 
-    Vector2 ClampToTerrain(Vector2 p)
+Vector2 ClampToTerrain(Vector2 p)
     {
         Rect r = terrain.WorldRect;
         float m = (terrain.undiggableBorderPx + BrushRadiusPx) / terrain.pixelsPerUnit;
+        // 上端が開いていて地上があるなら、地面の少し上まで出られる
+        float top = (terrain.topOpen && SurfaceArea.Instance != null)
+            ? r.yMax + SurfaceArea.Instance.moleCeilingAboveGround
+            : r.yMax - m;
         p.x = Mathf.Clamp(p.x, r.xMin + m, r.xMax - m);
-        p.y = Mathf.Clamp(p.y, r.yMin + m, r.yMax - m);
+        p.y = Mathf.Clamp(p.y, r.yMin + m, top);
         return p;
     }
 

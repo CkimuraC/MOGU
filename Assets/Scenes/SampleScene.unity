@@ -403,6 +403,60 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &752905407
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 752905409}
+  - component: {fileID: 752905408}
+  m_Layer: 0
+  m_Name: Surface
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &752905408
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 752905407}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9abe54b130d4d324fb8d7073951e73a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SurfaceArea
+  heightUnits: 4
+  moleCeilingAboveGround: 1.5
+  skyTop: {r: 0.45, g: 0.7, b: 0.92, a: 1}
+  skyBottom: {r: 0.8, g: 0.92, b: 0.97, a: 1}
+  showFarForest: 1
+  forestColor: {r: 0.22, g: 0.4, b: 0.27, a: 1}
+  forestHeightPx: 56
+  showGrassTufts: 1
+  randomSeed: 4242
+  contentRoot: {fileID: 0}
+--- !u!4 &752905409
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 752905407}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &764019111
 GameObject:
   m_ObjectHideFlags: 0
@@ -442,6 +496,8 @@ MonoBehaviour:
   ambient: 0
   cellPx: 4
   darkColor: {r: 0, g: 0, b: 0, a: 1}
+  surfaceLightFull: 0.3
+  surfaceLightDepth: 2.5
   sortingOrder: 8
 --- !u!4 &764019113
 Transform:
@@ -565,6 +621,14 @@ MonoBehaviour:
   tunnelBackColor: {r: 0.14, g: 0.08, b: 0.045, a: 1}
   noiseCellPx: 2
   randomSeed: 12345
+  topOpen: 1
+  turfDepthPx: 10
+  turfLight:
+    serializedVersion: 2
+    rgba: 4281641080
+  turfDark:
+    serializedVersion: 2
+    rgba: 4280575034
 --- !u!212 &1471143408
 SpriteRenderer:
   serializedVersion: 2
@@ -729,3 +793,4 @@ SceneRoots:
   - {fileID: 525666474}
   - {fileID: 1013288386}
   - {fileID: 764019113}
+  - {fileID: 752905409}

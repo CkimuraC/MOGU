@@ -40,7 +40,7 @@ public class CameraFollow : MonoBehaviour
     Vector2 Clamp(Vector2 p)
     {
         if (terrain == null) return p;
-        Rect r = terrain.WorldRect;
+        Rect r = SurfaceArea.Expand(terrain.WorldRect); // 地上の分もカメラが動ける
         float halfH = cam.orthographicSize;
         float halfW = halfH * cam.aspect;
         p.x = r.width <= halfW * 2f ? r.center.x : Mathf.Clamp(p.x, r.xMin + halfW, r.xMax - halfW);
