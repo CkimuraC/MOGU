@@ -4,6 +4,12 @@ using UnityEngine;
 public class StaminaHud : MonoBehaviour
 {
     public MoleController mole;
+
+    [Header("補助の説明(プレイヤー向け・仮)")]
+    [Tooltip("スタミナ切れで回復がだんだん遅くなることを説明する文を、画面の左に出す。不要になったらオフにする")]
+    public bool showRecoveryHelp = true;
+    [Tooltip("スタミナが切れた瞬間のお知らせを出す秒数")]
+    public float depletedBannerSeconds = 4f;
     ScanPulse scan;
     DirtTerrain terrain;
 
@@ -65,7 +71,28 @@ void OnGUI()
         }
         if (mole.Exhausted)
         {
-            UiText.Label(new Rect(x, y, w, lh), "疲れた… 休むと回復します", 18, new Color(1f, 0.45f, 0.4f));
+            string tired = "疲れた… 休むと回復します";
+            if (mole.DepletionCount > 0) tired += "(回復の速さ ×" + mole.RegenMultiplier.ToString("0.00") + ")";
+            UiText.Label(new Rect(x, y, w, lh), tired, 18, new Color(1f, 0.45f, 0.4f));
+            y += lh;
+        }
+
+        // スタミナが切れた回数と、回復の速さ
+        if (mole.DepletionCount > 0)
+        {
+            string line;
+            Color c;
+            if (mole.Recovering)
+            {
+                line = "スタミナ切れ: " + mole.DepletionCount + "回目   今の回復の速さ ×" + mole.RegenMultiplier.ToString("0.00");
+                c = mole.RegenMultiplier < 0.5f ? new Color(1f, 0.55f, 0.35f) : new Color(1f, 0.85f, 0.4f);
+            }
+            else
+            {
+                line = "スタミナ切れ: " + mole.DepletionCount + "回   次に切れると回復は ×" + mole.RegenMultiplierFor(mole.DepletionCount + 1).ToString("0.00");
+                c = new Color(0.85f, 0.85f, 0.7f);
+            }
+            UiText.Label(new Rect(x, y, w, lh), line, 18, c);
             y += lh;
         }
 
@@ -77,7 +104,37 @@ void OnGUI()
             y += lh;
         }
 
+        // 補助の説明(プレイヤー向け・仮)。デバッグパネルを開いている間は、重ならないよう隠す。
+        if (showRecoveryHelp && !DebugPanel.IsOpen)
+        {
+            y += lh * 0.4f;
+            float sl = UiText.Line(15);
+            var hint = new Color(0.82f, 0.9f, 1f, 0.9f);
+            int n = (mole.regenMulByDepletion != null && mole.regenMulByDepletion.Length > 0) ? mole.regenMulByDepletion.Length : 4;
+            UiText.Label(new Rect(x, y, w, sl), "【スタミナのヒント】", 15, hint); y += sl;
+            UiText.Label(new Rect(x, y, w, sl), "スタミナを使い切ると、満タンに戻るまで回復がゆっくりになります。", 15, hint); y += sl;
+            UiText.Label(new Rect(x, y, w, sl), "切れるたびにもっと遅くなり、" + n + "回目からは、ほとんど回復しません。", 15, hint); y += sl;
+            if (mole.resetDepletionOnSurface)
+            {
+                UiText.Label(new Rect(x, y, w, sl), "地上に戻ると、切れた回数はリセットされます。", 15, hint); y += sl;
+            }
+        }
+
         DrawControls();
+        DrawDepletedBanner();
+    }
+
+    // スタミナが切れた瞬間のお知らせ(画面の上のほう)
+    void DrawDepletedBanner()
+    {
+        if (Time.time - mole.LastDepletedTime >= depletedBannerSeconds) return;
+
+        float m = mole.RegenMultiplierFor(mole.DepletionCount);
+        string tail = m >= 0.99f ? "休むと回復します" : (m < 0.1f ? "ほとんど回復しません" : "回復がさらに遅くなります");
+        float big = UiText.Line(26);
+        UiText.Label(new Rect(0, UiText.Px(215), Screen.width, big),
+            "スタミナ切れ!(" + mole.DepletionCount + "回目)  " + tail,
+            26, new Color(1f, 0.7f, 0.45f, 0.97f), TextAnchor.UpperCenter);
     }
 
     // 操作の説明(画面の左下)

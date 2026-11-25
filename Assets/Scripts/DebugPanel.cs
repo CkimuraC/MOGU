@@ -19,6 +19,11 @@ public class DebugPanel : MonoBehaviour
 
     bool open;
     DarknessOverlay darkness;
+    MoleController mole;
+    Vector2 scroll;
+
+    /// <summary>パネルが開いているか(画面の説明文が重ならないよう、他の表示が参照する)</summary>
+    public static bool IsOpen { get; private set; }
 
     // 「元に戻す」用に、開始時の値を覚えておく
     bool darknessDefaultsSaved;
@@ -29,12 +34,14 @@ public class DebugPanel : MonoBehaviour
     {
         open = startOpen;
         darkness = FindFirstObjectByType<DarknessOverlay>();
+        mole = FindFirstObjectByType<MoleController>();
         SaveDarknessDefaults();
     }
 
-    void Update()
+void Update()
     {
         if (MoleInput.DebugPanelTogglePressed()) open = !open;
+        IsOpen = open;
     }
 
     void SaveDarknessDefaults()
@@ -78,8 +85,10 @@ void OnGUI()
             skin.horizontalSliderThumb.fixedWidth = px * 0.8f;
             skin.horizontalSliderThumb.fixedHeight = px * 0.95f;
 
-            // 背景(自前で描く)
-            var area = new Rect(UiText.Px(20), UiText.Px(230), UiText.Px(660), UiText.Px(640));
+            // 背景(自前で描く)。高さは、画面の下の操作説明に重ならない範囲まで
+            float top = UiText.Px(240);
+            float height = Mathf.Min(UiText.Px(1000), Screen.height - top - UiText.Px(120));
+            var area = new Rect(UiText.Px(20), top, UiText.Px(660), height);
             var prev = GUI.color;
             GUI.color = new Color(0f, 0f, 0f, 0.78f);
             GUI.DrawTexture(area, Texture2D.whiteTexture);
@@ -90,10 +99,15 @@ void OnGUI()
             GUILayout.Label("デバッグパネル  (F2で閉じる)", GUILayout.Height(RowH));
             GUILayout.Space(UiText.Px(4));
 
+            // 項目が多くて収まらないときは、スクロールできる
+            scroll = GUILayout.BeginScrollView(scroll);
             DrawDarkness();
+            GUILayout.Space(UiText.Px(10));
+            DrawStamina();
             GUILayout.Space(UiText.Px(10));
             DrawDisplay();
             // ★ここに足す: DrawTeleport(); DrawShards(); など
+            GUILayout.EndScrollView();
 
             GUILayout.EndArea();
         }
@@ -149,6 +163,36 @@ void DrawDarkness()
                         "  外側=" + darkness.lightOuterRadius.ToString("0.0") +
                         "  地表=" + darkness.surfaceLightDepth.ToString("0.0"), GUILayout.Height(RowH));
     }
+
+// ---------------- スタミナ ----------------
+    void DrawStamina()
+    {
+        GUILayout.Label("―― スタミナ ――", GUILayout.Height(RowH));
+        if (mole == null)
+        {
+            GUILayout.Label("(モグラが見つかりません)", GUILayout.Height(RowH));
+            return;
+        }
+
+        GUILayout.Label("スタミナ切れ " + mole.DepletionCount + "回   今の回復の速さ ×" + mole.RegenMultiplier.ToString("0.00") +
+                        (mole.Recovering ? "  (回復中)" : ""), GUILayout.Height(RowH));
+
+        // 切れた回数ごとの、回復の速さの倍率(最後の値は、それ以降すべてに使われる)
+        var m = mole.regenMulByDepletion;
+        if (m != null)
+        {
+            for (int i = 0; i < m.Length; i++)
+            {
+                string name = i == m.Length - 1 ? (i + 1) + "回目以降の回復の速さ" : (i + 1) + "回目の回復の速さ";
+                m[i] = Slider(name, m[i], 0f, 1f);
+            }
+        }
+
+        mole.resetDepletionOnSurface = Toggle("地上に戻ると回数をリセット", mole.resetDepletionOnSurface);
+        if (GUILayout.Button("切れた回数をリセット", GUILayout.Height(RowH))) mole.ResetDepletion();
+        if (GUILayout.Button("スタミナを全回復", GUILayout.Height(RowH))) mole.DebugRefill();
+    }
+
 
 // ---------------- 表示 ----------------
 void DrawDisplay()

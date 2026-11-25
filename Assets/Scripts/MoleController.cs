@@ -43,6 +43,12 @@ public class MoleController : MonoBehaviour
     [Tooltip("スタミナ切れ後、この量まで回復するまで掘れない(0で無効)。ガクガク進むのを防ぐ")]
     public float exhaustRecoverThreshold = 20f;
 
+    [Header("Recovery Penalty (スタミナ切れのペナルティ)")]
+    [Tooltip("スタミナが切れた回数ごとの、回復の速さの倍率。1番目=1回目に切れたあと、2番目=2回目…。足りない分は最後の値を使う")]
+    public float[] regenMulByDepletion = { 1f, 0.6f, 0.3f, 0.05f };
+    [Tooltip("true: 地上に戻ると、スタミナが切れた回数をリセットする")]
+    public bool resetDepletionOnSurface = true;
+
     [Header("Hardness (地層の硬さ)")]
     [Range(0f, 1f)]
     [Tooltip("硬さが掘る速さに与える影響。0=影響なし、1=硬さ2倍で速さが半分")]
@@ -57,6 +63,24 @@ public class MoleController : MonoBehaviour
 
     public float Stamina { get; private set; }
     public bool Exhausted { get; private set; }
+
+    /// <summary>スタミナが切れた回数(切れるたびに、回復がだんだん遅くなる)</summary>
+    public int DepletionCount { get; private set; }
+    /// <summary>スタミナが切れたあと、満タンに戻るまでの「回復中」か</summary>
+    public bool Recovering { get; private set; }
+    /// <summary>最後にスタミナが切れた時刻(画面の通知用)</summary>
+    public float LastDepletedTime { get; private set; } = -999f;
+
+    /// <summary>n回目に切れたあとの、回復の速さの倍率</summary>
+    public float RegenMultiplierFor(int n)
+    {
+        if (n <= 0 || regenMulByDepletion == null || regenMulByDepletion.Length == 0) return 1f;
+        int i = Mathf.Clamp(n - 1, 0, regenMulByDepletion.Length - 1);
+        return Mathf.Max(0f, regenMulByDepletion[i]);
+    }
+
+    /// <summary>今の回復の速さの倍率。スタミナ切れからの回復中だけ、切れた回数に応じて遅くなる。</summary>
+    public float RegenMultiplier { get { return Recovering ? RegenMultiplierFor(DepletionCount) : 1f; } }
 
     // ---- 一時的な最大スタミナ増加(★アイテム) ----
     class StaminaBoost { public float amount; public float remaining; }
@@ -214,12 +238,18 @@ void Update()
         {
             idleTimer += dt;
             if (idleTimer >= regenDelay && regenPerSecond > 0f)
-                Stamina = Mathf.Min(MaxStaminaCurrent, Stamina + regenPerSecond * dt);
+                Stamina = Mathf.Min(MaxStaminaCurrent, Stamina + regenPerSecond * RegenMultiplier * dt);
         }
 
         // 感情(安心)による継続回復(掘っていても回復する)
         float bonus = RegenBonus;
         if (bonus > 0f) Stamina = Mathf.Min(MaxStaminaCurrent, Stamina + bonus * dt);
+
+        // 満タンに戻ったら、スタミナ切れからの「回復中」を終える
+        if (Recovering && Stamina >= MaxStaminaCurrent - 0.01f) Recovering = false;
+
+        // 地上に戻ったら、スタミナが切れた回数をリセットする
+        if (resetDepletionOnSurface && DepletionCount > 0 && transform.position.y > terrain.TopY) ResetDepletion();
     }
 
     void TickBoosts(float dt)
@@ -232,6 +262,30 @@ void Update()
         }
         if (expired) Stamina = Mathf.Min(Stamina, MaxStaminaCurrent);
     }
+
+/// <summary>スタミナが0になった(回数を数え、回復中にする)</summary>
+    void OnDepleted()
+    {
+        DepletionCount++;
+        Recovering = true;
+        LastDepletedTime = Time.time;
+    }
+
+    /// <summary>スタミナが切れた回数を0に戻す(回復の速さも元に戻る)</summary>
+    public void ResetDepletion()
+    {
+        DepletionCount = 0;
+        Recovering = false;
+    }
+
+    /// <summary>デバッグ用: スタミナを全回復する(切れた回数はそのまま)</summary>
+    public void DebugRefill()
+    {
+        Stamina = MaxStaminaCurrent;
+        Exhausted = false;
+        Recovering = false;
+    }
+
 
 Vector2 Step(Vector2 pos, Vector2 dir, float dt, bool digHeld, ref bool dugThisFrame)
     {
@@ -263,7 +317,11 @@ Vector2 Step(Vector2 pos, Vector2 dir, float dt, bool digHeld, ref bool dugThisF
                     int newPixels = terrain.Dig(target, BrushRadiusPx);
                     Stamina = Mathf.Max(0f, Stamina - newPixels * staminaPerPixel * costMul);
                     if (newPixels > 0) dugThisFrame = true;
-                    if (Stamina <= 0f && exhaustRecoverThreshold > 0f) Exhausted = true;
+                    if (Stamina <= 0f)
+                    {
+                        OnDepleted(); // スタミナが切れた回数を数える
+                        if (exhaustRecoverThreshold > 0f) Exhausted = true;
+                    }
                     return target;
                 }
             }
