@@ -18,69 +18,63 @@ public class EmotionHud : MonoBehaviour
         mole = FindFirstObjectByType<MoleController>();
     }
 
-    void OnGUI()
+void OnGUI()
     {
         if (inv == null) return;
-        var prev = GUI.color;
 
-        float x = Screen.width - 300f;
-        float y = 20f;
+        float lh = UiText.Line(18);
+        float w = UiText.Px(420);
+        float x = Screen.width - w - UiText.Px(20);
+        float y = UiText.Px(16);
+        var gray = new Color(0.75f, 0.75f, 0.75f);
 
-        GUI.color = Color.white;
-        GUI.Label(new Rect(x, y, 290, 22), "Shards (carrying)");
-        y += 20f;
-        GUI.color = new Color(0.75f, 0.75f, 0.75f);
-        GUI.Label(new Rect(x, y, 290, 22), "Eat: 1-6 / E     Select: Tab (Pad: L1 / O)");
-        y += 22f;
+        UiText.Label(new Rect(x, y, w, lh), "持っているかけら", 18, Color.white);
+        y += lh;
+        UiText.Label(new Rect(x, y, w, lh),
+            inv.autoEatOnPickup ? "触れると自動で食べます" : "食べる: 1〜6 / E    選ぶ: Tab(パッド: L1 / ○)",
+            15, gray);
+        y += lh;
 
         for (int i = 0; i < EmotionInfo.Count; i++)
         {
             var t = (EmotionType)i;
-            GUI.color = inv.carried[i] > 0 ? EmotionInfo.ColorOf(t) : new Color(0.6f, 0.6f, 0.6f, 0.7f);
-            string mark = i == inv.selected ? "> " : "   ";
-            GUI.Label(new Rect(x, y, 290, 22),
-                mark + (i + 1) + " " + EmotionInfo.NameEn(t) + "  x" + inv.carried[i]);
-            y += 20f;
+            Color c = inv.carried[i] > 0 ? EmotionInfo.ColorOf(t) : new Color(0.62f, 0.62f, 0.62f, 0.8f);
+            string mark = i == inv.selected ? "▶ " : "　 ";
+            UiText.Label(new Rect(x, y, w, lh),
+                mark + (i + 1) + "  " + EmotionInfo.NameJp(t) + "  ×" + inv.carried[i], 18, c);
+            y += lh;
         }
 
-        GUI.color = Color.white;
-        GUI.Label(new Rect(x, y, 290, 22), "Delivered: " + inv.DeliveredTotal);
-        y += 26f;
+        UiText.Label(new Rect(x, y, w, lh), "持ち帰った数: " + inv.DeliveredTotal, 18, Color.white);
+        y += lh * 1.3f;
 
         // 効いている感情の効果
         if (fx != null && fx.ActiveCount > 0)
         {
-            GUI.color = Color.white;
-            GUI.Label(new Rect(x, y, 290, 22), "Active effects");
-            y += 20f;
+            UiText.Label(new Rect(x, y, w, lh), "効いている効果", 18, Color.white);
+            y += lh;
             for (int i = 0; i < fx.ActiveCount; i++)
             {
                 var t = fx.ActiveType(i);
-                GUI.color = EmotionInfo.ColorOf(t);
-                GUI.Label(new Rect(x, y, 290, 22),
-                    "  " + EmotionInfo.NameEn(t) + "  " + Mathf.CeilToInt(fx.ActiveRemaining(i)) + "s");
-                y += 20f;
+                UiText.Label(new Rect(x, y, w, lh),
+                    "　 " + EmotionInfo.NameJp(t) + "   あと" + Mathf.CeilToInt(fx.ActiveRemaining(i)) + "秒",
+                    18, EmotionInfo.ColorOf(t));
+                y += lh;
             }
         }
 
-        // 画面中央上の通知
-        if (toastStyle == null)
-        {
-            toastStyle = new GUIStyle(GUI.skin.label) { fontSize = 20, alignment = TextAnchor.MiddleCenter };
-        }
-        float cy = 90f;
+        // 画面の上のほうに出す通知
+        float big = UiText.Line(28);
+        float cy = UiText.Px(90);
         if (Time.time < inv.ToastUntil && !string.IsNullOrEmpty(inv.ToastText))
         {
-            GUI.color = new Color(1f, 1f, 1f, 0.95f);
-            GUI.Label(new Rect(0, cy, Screen.width, 30), inv.ToastText, toastStyle);
-            cy += 30f;
+            UiText.Label(new Rect(0, cy, Screen.width, big), inv.ToastText, 28, new Color(1f, 1f, 1f, 0.97f), TextAnchor.UpperCenter);
+            cy += big;
         }
         if (mole != null && Time.time < mole.HardBlockedUntil)
         {
-            GUI.color = new Color(1f, 0.55f, 0.45f, 0.95f);
-            GUI.Label(new Rect(0, cy, Screen.width, 30), "Too hard to dig here! (Anger might help)", toastStyle);
+            UiText.Label(new Rect(0, cy, Screen.width, big), "ここは硬すぎて掘れません!(「怒り」を食べると掘れるかも)",
+                26, new Color(1f, 0.6f, 0.5f, 0.97f), TextAnchor.UpperCenter);
         }
-
-        GUI.color = prev;
     }
 }

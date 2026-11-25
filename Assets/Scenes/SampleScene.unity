@@ -119,6 +119,51 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &240407652
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 240407654}
+  - component: {fileID: 240407653}
+  m_Layer: 0
+  m_Name: DebugPanel
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &240407653
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 240407652}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43b94ed6106da384ea137646210ce7a2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DebugPanel
+  startOpen: 0
+--- !u!4 &240407654
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 240407652}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -730,7 +775,7 @@ MonoBehaviour:
     serializedVersion: 2
     rgba: 4280575034
   layers:
-  - name: Topsoil
+  - name: "\u8868\u571F"
     startDepth: 0
     colorLight:
       serializedVersion: 2
@@ -741,7 +786,7 @@ MonoBehaviour:
     hardness: 1
     speckle: 1
     minDigPower: 0
-  - name: Clay
+  - name: "\u7C98\u571F\u5C64"
     startDepth: 6
     colorLight:
       serializedVersion: 2
@@ -752,7 +797,7 @@ MonoBehaviour:
     hardness: 1.4
     speckle: 1
     minDigPower: 0
-  - name: Gravel
+  - name: "\u7802\u5229\u5C64"
     startDepth: 12
     colorLight:
       serializedVersion: 2
@@ -763,7 +808,7 @@ MonoBehaviour:
     hardness: 1.9
     speckle: 3
     minDigPower: 0
-  - name: Hard
+  - name: "\u786C\u3044\u5C64"
     startDepth: 18
     colorLight:
       serializedVersion: 2
@@ -774,7 +819,7 @@ MonoBehaviour:
     hardness: 2.6
     speckle: 2
     minDigPower: 0
-  - name: Bedrock
+  - name: "\u5CA9\u76E4"
     startDepth: 25
     colorLight:
       serializedVersion: 2
@@ -874,6 +919,7 @@ GameObject:
   - component: {fileID: 1890067547}
   - component: {fileID: 1890067549}
   - component: {fileID: 1890067548}
+  - component: {fileID: 1890067550}
   m_Layer: 0
   m_Name: Mole
   m_TagString: Untagged
@@ -960,6 +1006,8 @@ MonoBehaviour:
   delivered: 000000000000000000000000000000000000000000000000
   selected: 0
   autoDeliverOnSurface: 1
+  autoEatOnPickup: 1
+  startWithEach: 0
 --- !u!114 &1890067549
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1027,6 +1075,35 @@ MonoBehaviour:
     digPowerBonus: 0
     scanRangeMul: 1
     specialSenseMul: 2
+--- !u!114 &1890067550
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1890067544}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6706c3e4b912d334399aa01e797024d6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MoleThought
+  emotionTexts:
+  - "\u266A"
+  - "\u3080\u3080\u3080\u2026\uFF01"
+  - "\u2026\u2026"
+  - "\u306A\u306B\u304B\u3044\u308B\u2026\uFF1F"
+  - "\u3075\u3045\u2026"
+  - "\u306A\u3093\u3060\u308D\u3046\uFF1F"
+  displaySeconds: 2.5
+  heightAbove: 0.55
+  fontTexels: 7
+  pixelScaleOverride: 0
+  outlineColor: {r: 0.27450982, g: 0.20392157, b: 0.17254902, a: 1}
+  fillColor: {r: 1, g: 1, b: 1, a: 1}
+  shadeColor: {r: 0.87058824, g: 0.8627451, b: 0.8392157, a: 1}
+  textColor: {r: 0.23529412, g: 0.17254902, b: 0.14901961, a: 1}
+  customFont: {fileID: 0}
+  showDebugInfo: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1040,3 +1117,4 @@ SceneRoots:
   - {fileID: 764019113}
   - {fileID: 752905409}
   - {fileID: 1138731304}
+  - {fileID: 240407654}

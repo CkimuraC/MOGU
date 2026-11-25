@@ -58,6 +58,8 @@ public class DarknessOverlay : MonoBehaviour
     SpriteRenderer sr;
 
     bool hasLast;
+    float lastSig;   // 前回の設定(透過度・地表の光)。変わったら全体を計算し直す
+    bool hasSig;
     int lx0, ly0, lx1, ly1; // 前フレームに更新した範囲
 
     void Start()
@@ -137,6 +139,16 @@ public class DarknessOverlay : MonoBehaviour
             x0 = Mathf.Min(x0, lx0); y0 = Mathf.Min(y0, ly0);
             x1 = Mathf.Max(x1, lx1); y1 = Mathf.Max(y1, ly1);
         }
+        // 透過度や地表の光の設定が変わったら、画面全体を計算し直す
+        // (しないと、更新範囲の外だけ古い明るさのまま残り、四角く見える)
+        float sig = ambient * 1000f + surfaceLightDepth * 37f + surfaceLightFull * 91f;
+        if (!hasSig || !Mathf.Approximately(sig, lastSig))
+        {
+            x0 = 0; y0 = 0; x1 = w - 1; y1 = h - 1;
+            lastSig = sig;
+            hasSig = true;
+        }
+
         x0 = Mathf.Clamp(x0, 0, w - 1); x1 = Mathf.Clamp(x1, 0, w - 1);
         y0 = Mathf.Clamp(y0, 0, h - 1); y1 = Mathf.Clamp(y1, 0, h - 1);
 

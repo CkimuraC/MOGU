@@ -18,12 +18,16 @@ void OnGUI()
     {
         if (mole == null) return;
 
+        float lh = UiText.Line(18);
+        float x = UiText.Px(20);
+        float y = UiText.Px(16);
+        float w = UiText.Px(900);
+
+        // スタミナのゲージ(★ブースト中は長くなる)
         float max = mole.MaxStaminaCurrent;
         float ratio = Mathf.Clamp01(mole.Stamina / Mathf.Max(1f, max));
-        // ★ブースト中はバーが長くなる
-        float width = 260f * max / Mathf.Max(1f, mole.maxStamina);
-
-        var frame = new Rect(20, 20, width, 22);
+        float barW = UiText.Px(320) * max / Mathf.Max(1f, mole.maxStamina);
+        var frame = new Rect(x, y, barW, UiText.Px(28));
         var fill = new Rect(frame.x + 2, frame.y + 2, (frame.width - 4) * ratio, frame.height - 4);
 
         var prev = GUI.color;
@@ -33,54 +37,66 @@ void OnGUI()
         GUI.DrawTexture(fill, Texture2D.whiteTexture);
         GUI.color = prev;
 
-        float y = frame.yMax + 4;
-        GUI.Label(new Rect(frame.x, y, 600, 22),
-            "Stamina " + Mathf.CeilToInt(mole.Stamina) + " / " + Mathf.CeilToInt(max));
-        y += 20;
+        y = frame.yMax + UiText.Px(6);
+        UiText.Label(new Rect(x, y, w, lh),
+            "スタミナ  " + Mathf.CeilToInt(mole.Stamina) + " / " + Mathf.CeilToInt(max), 18, Color.white);
+        y += lh;
 
         // 今いる地層(深いほど硬い)
         if (terrain != null)
         {
             Vector2 mp = mole.transform.position;
             bool onSurface = mp.y > terrain.TopY;
-            string layerName = onSurface ? "Surface" : terrain.LayerNameAt(mp);
+            string layerName = onSurface ? "地上" : terrain.LayerNameAt(mp);
             if (!string.IsNullOrEmpty(layerName))
             {
-                string hardText = onSurface ? "" : "  (hardness x" + terrain.HardnessAt(mp).ToString("0.0") + ")";
-                GUI.Label(new Rect(frame.x, y, 600, 22), "Layer: " + layerName + hardText);
-                y += 20;
+                string hardText = onSurface ? "" : "  (硬さ ×" + terrain.HardnessAt(mp).ToString("0.0") + ")";
+                UiText.Label(new Rect(x, y, w, lh), "いる場所: " + layerName + hardText, 18, Color.white);
+                y += lh;
             }
         }
 
         if (mole.BoostBonus > 0.5f)
         {
-            GUI.color = new Color(1f, 0.9f, 0.3f);
-            GUI.Label(new Rect(frame.x, y, 600, 22),
-                "Star boost: max +" + Mathf.CeilToInt(mole.BoostBonus) + "  (" + Mathf.CeilToInt(mole.BoostTimeRemaining) + "s)");
-            GUI.color = prev;
-            y += 20;
+            UiText.Label(new Rect(x, y, w, lh),
+                "★ブースト中: 最大スタミナ +" + Mathf.CeilToInt(mole.BoostBonus) + "  (あと" + Mathf.CeilToInt(mole.BoostTimeRemaining) + "秒)",
+                18, new Color(1f, 0.9f, 0.3f));
+            y += lh;
         }
         if (mole.Exhausted)
         {
-            GUI.color = new Color(1f, 0.4f, 0.35f);
-            GUI.Label(new Rect(frame.x, y, 600, 22), "Exhausted - rest to recover");
-            GUI.color = prev;
-            y += 20;
+            UiText.Label(new Rect(x, y, w, lh), "疲れた… 休むと回復します", 18, new Color(1f, 0.45f, 0.4f));
+            y += lh;
         }
 
         if (scan != null)
         {
-            GUI.color = scan.Ready ? new Color(0.5f, 0.95f, 1f) : new Color(0.7f, 0.7f, 0.7f);
-            GUI.Label(new Rect(frame.x, y, 600, 22),
-                scan.Ready ? "Scan: READY" : "Scan: " + scan.CooldownLeft.ToString("0.0") + "s");
-            GUI.color = prev;
-            y += 20;
+            Color c = scan.Ready ? new Color(0.5f, 0.95f, 1f) : new Color(0.75f, 0.75f, 0.75f);
+            UiText.Label(new Rect(x, y, w, lh),
+                scan.Ready ? "スキャン: 使えます" : "スキャン: あと" + scan.CooldownLeft.ToString("0.0") + "秒", 18, c);
+            y += lh;
         }
 
-        GUI.Label(new Rect(frame.x, y, 600, 22),
-            "Keyboard: WASD/Arrows + Shift(dig) + Q(scan) + R(refill) + L(darkness on/off)");
-        y += 20;
-        GUI.Label(new Rect(frame.x, y, 600, 22),
-            "Gamepad: L-Stick/D-pad + R2/R1/Square(dig) + L2/Triangle(scan) + Options(refill)");
+        DrawControls();
+    }
+
+    // 操作の説明(画面の左下)
+    void DrawControls()
+    {
+        float lh = UiText.Line(15);
+        float x = UiText.Px(20);
+        float w = Screen.width - x * 2f;
+        string[] lines =
+        {
+            "【キーボード】 WASD/矢印=移動   Shift=掘る   Q=スキャン   1〜6/E=かけらを食べる   Tab=選ぶ   F2=デバッグ",
+            "【パッド】 左スティック=移動   R2/R1/□=掘る   L2/△=スキャン   L1=選ぶ   ○=食べる",
+            "【開発用】 L=暗闇オンオフ   R=スタミナ回復   G=かけらを各1個入手"
+        };
+        float y = Screen.height - lh * lines.Length - UiText.Px(10);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            UiText.Label(new Rect(x, y, w, lh), lines[i], 15, new Color(1f, 1f, 1f, 0.8f));
+            y += lh;
+        }
     }
 }

@@ -109,21 +109,22 @@ public static class MoleInput
     }
 
 /// <summary>感情のかけらを食べる(キーボード1〜6)。押された番号(0〜5)、なければ-1</summary>
-    public static int ShardEatIndex()
+public static int ShardEatIndex()
     {
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
         if (k == null) return -1;
-        if (k.digit1Key.wasPressedThisFrame) return 0;
-        if (k.digit2Key.wasPressedThisFrame) return 1;
-        if (k.digit3Key.wasPressedThisFrame) return 2;
-        if (k.digit4Key.wasPressedThisFrame) return 3;
-        if (k.digit5Key.wasPressedThisFrame) return 4;
-        if (k.digit6Key.wasPressedThisFrame) return 5;
+        // 上段の数字キーでもテンキーでも反応する
+        if (k.digit1Key.wasPressedThisFrame || k.numpad1Key.wasPressedThisFrame) return 0;
+        if (k.digit2Key.wasPressedThisFrame || k.numpad2Key.wasPressedThisFrame) return 1;
+        if (k.digit3Key.wasPressedThisFrame || k.numpad3Key.wasPressedThisFrame) return 2;
+        if (k.digit4Key.wasPressedThisFrame || k.numpad4Key.wasPressedThisFrame) return 3;
+        if (k.digit5Key.wasPressedThisFrame || k.numpad5Key.wasPressedThisFrame) return 4;
+        if (k.digit6Key.wasPressedThisFrame || k.numpad6Key.wasPressedThisFrame) return 5;
         return -1;
 #else
         for (int i = 0; i < 6; i++)
-            if (Input.GetKeyDown(KeyCode.Alpha1 + i)) return i;
+            if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i)) return i;
         return -1;
 #endif
     }
@@ -153,6 +154,30 @@ public static class MoleInput
         return Input.GetKeyDown(KeyCode.E);
 #endif
     }
+
+/// <summary>デバッグ用:全種類のかけらを1つずつ手に入れる。Gキー</summary>
+    public static bool DebugGiveShardsPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        return k != null && k.gKey.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.G);
+#endif
+    }
+
+/// <summary>デバッグパネルの開閉。F2キー</summary>
+    public static bool DebugPanelTogglePressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        return k != null && k.f2Key.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.F2);
+#endif
+    }
+
+
 
 
 

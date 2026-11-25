@@ -16,6 +16,13 @@ public class ShardInventory : MonoBehaviour
     [Tooltip("地上に出たとき、持っているかけらを自動で納める")]
     public bool autoDeliverOnSurface = true;
 
+    [Tooltip("true: かけらに触れた瞬間に、その場で自動的に食べる(効果と吹き出しが出る。持ち物には入らない)。false: 持ち物に入り、キーで食べる・地上で納める")]
+    public bool autoEatOnPickup = true;
+
+    [Header("Debug (開発用)")]
+    [Tooltip("ゲーム開始時に、各種類のかけらをこの数ずつ持った状態で始める。0なら何も持たない")]
+    public int startWithEach = 0;
+
     public string ToastText { get; private set; }
     public float ToastUntil { get; private set; }
 
@@ -33,6 +40,7 @@ public class ShardInventory : MonoBehaviour
         terrain = FindFirstObjectByType<DirtTerrain>();
         if (carried == null || carried.Length != EmotionInfo.Count) carried = new int[EmotionInfo.Count];
         if (delivered == null || delivered.Length != EmotionInfo.Count) delivered = new int[EmotionInfo.Count];
+        if (startWithEach > 0) for (int i = 0; i < carried.Length; i++) carried[i] += startWithEach;
     }
 
     void Update()
@@ -48,30 +56,56 @@ public class ShardInventory : MonoBehaviour
         if (MoleInput.ShardCyclePressed()) selected = (selected + 1) % EmotionInfo.Count;
         if (MoleInput.ShardEatSelectedPressed()) TryEat((EmotionType)selected);
 
+        // デバッグ:Gキーで全種類を1つずつ手に入れる
+        if (MoleInput.DebugGiveShardsPressed())
+        {
+            for (int i = 0; i < carried.Length; i++) carried[i]++;
+            Toast("デバッグ: かけらを各1個入手", 1.5f);
+        }
+
         // 地上に出たら納める
         if (autoDeliverOnSurface && terrain != null && CarriedTotal > 0 && transform.position.y > terrain.TopY)
             DeliverAll();
     }
 
-    public void Add(EmotionType t)
+public void Add(EmotionType t)
     {
+        // 触れた瞬間に自動で食べる設定なら、持ち物に入れずにその場で食べる
+        if (autoEatOnPickup)
+        {
+            EatNow(t);
+            return;
+        }
+
         carried[(int)t]++;
-        Toast("Got a " + EmotionInfo.NameEn(t) + " shard", 1.5f);
+        Toast("かけらを拾った: " + EmotionInfo.NameJp(t), 1.5f);
     }
 
-    public bool TryEat(EmotionType t)
+public bool TryEat(EmotionType t)
     {
         int i = (int)t;
         if (carried[i] <= 0)
         {
-            Toast("No " + EmotionInfo.NameEn(t) + " shard to eat", 1.2f);
+            Toast("「" + EmotionInfo.NameJp(t) + "」のかけらを持っていません", 1.2f);
             return false;
         }
         carried[i]--;
-        if (fx != null) fx.Apply(t);
-        Toast("Ate " + EmotionInfo.NameEn(t), 1.5f);
+        EatNow(t);
         return true;
     }
+
+/// <summary>かけらを食べた結果(効果・モグラの吹き出し・通知)を出す。持ち物の増減はしない。</summary>
+    void EatNow(EmotionType t)
+    {
+        if (fx != null) fx.Apply(t);
+
+        // モグラの思考(吹き出し)
+        var thought = GetComponent<MoleThought>();
+        if (thought != null) thought.ShowEmotion(t);
+
+        Toast("食べた: " + EmotionInfo.NameJp(t), 1.5f);
+    }
+
 
     void DeliverAll()
     {
@@ -82,7 +116,7 @@ public class ShardInventory : MonoBehaviour
             n += carried[i];
             carried[i] = 0;
         }
-        if (n > 0) Toast("Delivered " + n + " shard" + (n > 1 ? "s" : "") + "!", 2.5f);
+        if (n > 0) Toast("かけらを " + n + " 個、持ち帰りました!", 2.5f);
     }
 
     void Toast(string text, float seconds)
