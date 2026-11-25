@@ -183,6 +183,33 @@ public static int ShardEatIndex() { return InputBlocked ? -1 : ShardEatIndexRaw(
 #endif
     }
 
+/// <summary>画面を引いて見る(押している間)。Zキー / R3(右スティックを押し込む)</summary>
+    public static bool ZoomOutHeld() { return !InputBlocked && ZoomOutHeldRaw(); }
+
+static bool ZoomOutHeldRaw()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        return k != null && k.zKey.isPressed; // Zキーは、押している間だけ引く
+#else
+        return Input.GetKey(KeyCode.Z);
+#endif
+    }
+
+    /// <summary>画面を引く / 戻すの切り替え(押した瞬間だけ)。R3(右スティックを押し込む)</summary>
+    public static bool ZoomTogglePressed() { return !InputBlocked && ZoomTogglePressedRaw(); }
+
+    static bool ZoomTogglePressedRaw()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var g = Gamepad.current;
+        return g != null && g.rightStickButton.wasPressedThisFrame;
+#else
+        return false;
+#endif
+    }
+
+
 /// <summary>デバッグパネルの開閉。F2キー</summary>
     public static bool DebugPanelTogglePressed()
     {

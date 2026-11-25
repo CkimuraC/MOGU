@@ -384,6 +384,9 @@ MonoBehaviour:
   target: {fileID: 0}
   terrain: {fileID: 0}
   orthoSize: 6
+  zoomOutFactor: 2.2
+  zoomSmoothTime: 0.2
+  zoomLocked: 0
   smoothTime: 0.08
   backgroundColor: {r: 0.08, g: 0.05, b: 0.03, a: 1}
 --- !u!1 &525666472

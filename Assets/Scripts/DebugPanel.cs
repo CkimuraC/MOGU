@@ -109,6 +109,8 @@ void OnGUI()
             GUILayout.Space(UiText.Px(10));
             DrawRepair();
             GUILayout.Space(UiText.Px(10));
+            DrawCamera();
+            GUILayout.Space(UiText.Px(10));
             DrawDisplay();
             // ★ここに足す: DrawTeleport(); DrawShards(); など
             GUILayout.EndScrollView();
@@ -253,6 +255,28 @@ void DrawDarkness()
         if (GUILayout.Button("修復だけ10秒進める", GUILayout.Height(RowH))) tr.FastForward(10f);
         if (GUILayout.Button("すべての穴を今すぐ埋める", GUILayout.Height(RowH))) tr.FillAllNow();
     }
+
+// ---------------- カメラ(引いて見る) ----------------
+    CameraFollow camFollow;
+
+    void DrawCamera()
+    {
+        GUILayout.Label("―― カメラ(引いて見る) ――", GUILayout.Height(RowH));
+        if (camFollow == null) camFollow = FindFirstObjectByType<CameraFollow>();
+        if (camFollow == null)
+        {
+            GUILayout.Label("(CameraFollow が見つかりません)", GUILayout.Height(RowH));
+            return;
+        }
+
+        camFollow.orthoSize = Slider("ふだんの見える範囲(縦の半分)", camFollow.orthoSize, 3f, 14f, "0.0");
+        camFollow.zoomOutFactor = Slider("引いたときの倍率", camFollow.zoomOutFactor, 1f, 3.5f);
+        camFollow.zoomSmoothTime = Slider("切り替えのなめらかさ(秒)", camFollow.zoomSmoothTime, 0.02f, 1.5f);
+        camFollow.zoomLocked = Toggle("引いたままにする(キー不要)", camFollow.zoomLocked);
+        GUILayout.Label("Zキー: 押している間だけ引く", GUILayout.Height(RowH));
+        GUILayout.Label("R3(パッド): 押すたびに「引く / 戻す」を切り替え  (いま: " + (camFollow.ZoomToggled ? "引いている" : "ふだん") + ")", GUILayout.Height(RowH));
+    }
+
 
 
 

@@ -7,6 +7,23 @@ public class CameraFollow : MonoBehaviour
     public Transform target;
     public DirtTerrain terrain;
     public float orthoSize = 6f;
+
+    [Header("Zoom (引いて見る)")]
+    [Tooltip("Zキー(押している間)、またはR3(押すたびに切り替え)で、見える範囲をこの倍率に広げる。1=変わらない")]
+    public float zoomOutFactor = 2.2f;
+    [Tooltip("引く・戻すときの、なめらかさ(秒)。小さいほど、すぐ切り替わる")]
+    public float zoomSmoothTime = 0.2f;
+    [Tooltip("オンにすると、キーを押さなくても、引いたままになる(開発用)")]
+    public bool zoomLocked = false;
+
+    float zoomVelocity;
+    bool zoomToggled; // R3で「引いたまま」になっているか
+
+    /// <summary>R3で「引いたまま」になっているか</summary>
+    public bool ZoomToggled { get { return zoomToggled; } }
+
+    /// <summary>引いたまま / ふだん の切り替え(R3を押したとき)。</summary>
+    public void ToggleZoom() { zoomToggled = !zoomToggled; }
     public float smoothTime = 0.08f;
     public Color backgroundColor = new Color(0.08f, 0.05f, 0.03f);
 
@@ -58,11 +75,24 @@ public class CameraFollow : MonoBehaviour
         return p;
     }
 
-    void LateUpdate()
+void LateUpdate()
     {
+        if (MoleInput.ZoomTogglePressed()) ToggleZoom(); // R3: 1回押すと引く、もう一回押すと戻る
+        UpdateZoom(Time.unscaledDeltaTime);               // メニューで時間が止まっていても動くよう、止まらない時間を使う
+
         if (target == null) return;
         Vector2 goal = Clamp(target.position);
         Vector3 goal3 = new Vector3(goal.x, goal.y, transform.position.z);
         transform.position = Vector3.SmoothDamp(transform.position, goal3, ref velocity, smoothTime);
+    }
+
+    /// <summary>キーを押している間、見える範囲をなめらかに広げる(離すと戻る)。</summary>
+public void UpdateZoom(float dt)
+    {
+        // Zキーを押している間 / R3で切り替えた状態 / デバッグで固定した状態、のどれかなら、引く
+        bool zoomOut = zoomLocked || zoomToggled || MoleInput.ZoomOutHeld();
+        float targetSize = orthoSize * (zoomOut ? Mathf.Max(1f, zoomOutFactor) : 1f);
+        cam.orthographicSize = Mathf.SmoothDamp(cam.orthographicSize, targetSize, ref zoomVelocity,
+            Mathf.Max(0.01f, zoomSmoothTime), Mathf.Infinity, dt);
     }
 }
