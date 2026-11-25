@@ -107,6 +107,8 @@ void OnGUI()
             GUILayout.Space(UiText.Px(10));
             DrawBases();
             GUILayout.Space(UiText.Px(10));
+            DrawRepair();
+            GUILayout.Space(UiText.Px(10));
             DrawDisplay();
             // ★ここに足す: DrawTeleport(); DrawShards(); など
             GUILayout.EndScrollView();
@@ -220,6 +222,38 @@ void DrawDarkness()
         if (GUILayout.Button("拠点のセーブデータを削除", GUILayout.Height(RowH))) bm.DeleteSaveFile();
         if (GUILayout.Button("初期位置へ移動", GUILayout.Height(RowH))) bm.ReturnToInitial();
     }
+
+// ---------------- 穴の修復 ----------------
+    void DrawRepair()
+    {
+        GUILayout.Label("―― 穴の修復(砂で埋まる) ――", GUILayout.Height(RowH));
+        var tr = TerrainRepair.Instance;
+        if (tr == null)
+        {
+            GUILayout.Label("(TerrainRepair が見つかりません)", GUILayout.Height(RowH));
+            return;
+        }
+
+        tr.repairEnabled = Toggle("掘った穴を自動で修復する", tr.repairEnabled);
+        tr.repairDelaySeconds = Slider("埋まり始めるまで(秒)", tr.repairDelaySeconds, 0f, 300f, "0");
+        tr.fillDurationSeconds = Slider("完全に埋まるまでの目安(秒)", tr.fillDurationSeconds, 1f, 300f, "0");
+        string styleName = tr.fillStyle == TerrainRepair.FillStyle.FloorAndCeiling ? "上下から" : (tr.fillStyle == TerrainRepair.FillStyle.Floor ? "下から" : "壁ぎわから");
+        if (GUILayout.Button("埋まり方: " + styleName + "  (押して切り替え)", GUILayout.Height(RowH)))
+            tr.fillStyle = (TerrainRepair.FillStyle)(((int)tr.fillStyle + 1) % 3);
+        tr.grainPx = Mathf.RoundToInt(Slider("砂の粒の大きさ(画素)", tr.grainPx, 1f, 8f, "0"));
+        tr.sandTint = Slider("砂の色の濃さ", tr.sandTint, 0f, 1f);
+        tr.protectRadiusAroundMole = Slider("モグラの周りは埋めない距離", tr.protectRadiusAroundMole, 0f, 8f, "0.0");
+        GUILayout.Label("修復待ち・修復中のブロック: " + tr.DugChunkCount, GUILayout.Height(RowH));
+
+        if (GUILayout.Button("テスト用に早くする(開始3秒・完了10秒)", GUILayout.Height(RowH)))
+        {
+            tr.repairDelaySeconds = 3f;
+            tr.fillDurationSeconds = 10f;
+        }
+        if (GUILayout.Button("修復だけ10秒進める", GUILayout.Height(RowH))) tr.FastForward(10f);
+        if (GUILayout.Button("すべての穴を今すぐ埋める", GUILayout.Height(RowH))) tr.FillAllNow();
+    }
+
 
 
 

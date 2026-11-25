@@ -49,6 +49,16 @@ public class DirtTerrain : MonoBehaviour
     Texture2D tex;
     bool[] dug; // true = 掘削済み(空間)
     bool dirty;
+    bool urgentDirty;          // 掘ったとき(すぐ画面に反映したい)
+    float lastApplyTime;
+    Color32[] baseColors;      // 土の元の色(埋め戻すときに使う)
+
+    [Header("Repair (埋め戻し)")]
+    [Tooltip("埋め戻しだけの変化は、画像の更新をこの間隔(秒)にまとめる。掘っているときは、すぐ更新する")]
+    public float repairApplyInterval = 0.1f;
+
+    /// <summary>土を掘ったときに呼ばれる。掘った範囲(px)の左下・右上を渡す。</summary>
+    public event System.Action<int, int, int, int> Dug;
     static readonly Color32 Clear = new Color32(0, 0, 0, 0);
 
     public Vector2 WorldSize => new Vector2(widthPx, heightPx) / pixelsPerUnit;
@@ -129,6 +139,7 @@ void BuildTexture()
             }
         }
         tex.SetPixels32(pixels);
+        baseColors = pixels; // 埋め戻すときに、元の土の色へ戻せるよう覚えておく
         tex.Apply(false);
 
         var sr = GetComponent<SpriteRenderer>();
@@ -250,16 +261,46 @@ public bool IsSolid(Vector2 world)
                 count++;
             }
         }
-        if (count > 0) dirty = true;
+        if (count > 0)
+        {
+            dirty = true;
+            urgentDirty = true;
+            if (Dug != null) Dug(x0, y0, x1, y1);
+        }
         return count;
     }
 
-    void LateUpdate()
+/// <summary>その画素が掘られている(空間)か。indexは y * widthPx + x。範囲は呼ぶ側で守る。</summary>
+    public bool IsDugIndex(int i) { return dug[i]; }
+
+    /// <summary>掘られた画素を、土に埋め戻す。元の土の色に、砂の色を sandTint の割合だけ混ぜる。埋めた数を返す。</summary>
+    public int RefillPixels(System.Collections.Generic.List<int> indices, Color sand, float sandTint)
     {
-        if (dirty)
+        if (indices == null || indices.Count == 0) return 0;
+        var data = tex.GetRawTextureData<Color32>();
+        int n = 0;
+        for (int k = 0; k < indices.Count; k++)
         {
-            tex.Apply(false);
-            dirty = false;
+            int i = indices[k];
+            if (!dug[i]) continue;
+            dug[i] = false;
+            Color32 b = baseColors[i];
+            data[i] = sandTint > 0f ? (Color32)Color.Lerp(b, sand, sandTint) : b;
+            n++;
         }
+        if (n > 0) dirty = true;
+        return n;
+    }
+
+
+void LateUpdate()
+    {
+        if (!dirty) return;
+        // 埋め戻しだけの変化は、少しまとめて更新する(毎フレーム画像を送らない)
+        if (!urgentDirty && Time.unscaledTime - lastApplyTime < repairApplyInterval) return;
+        tex.Apply(false);
+        dirty = false;
+        urgentDirty = false;
+        lastApplyTime = Time.unscaledTime;
     }
 }

@@ -30,6 +30,7 @@ public class BaseSite
     public int seq;             // 作った順(小さいほど古い)
     public Vector2 position;    // 空洞の中心
     public GameObject marker;   // 目印の絵
+    public int protectId = -1;  // 修復で埋まらない場所の登録番号
     public string Name { get { return "拠点" + slot; } }
 }
 
@@ -226,6 +227,7 @@ public class BaseManager : MonoBehaviour
     {
         if (b == null) return;
         if (b.marker != null) Destroy(b.marker);
+        if (b.protectId >= 0 && TerrainRepair.Instance != null) TerrainRepair.Instance.RemoveProtected(b.protectId);
         bases.Remove(b);
     }
 
@@ -248,6 +250,10 @@ public class BaseManager : MonoBehaviour
         site.marker = go;
 
         bases.Add(site);
+
+        // 拠点の空洞は、穴の修復で埋まらないようにする
+        var rep = TerrainRepair.Instance;
+        if (rep != null) site.protectId = rep.AddProtected(pos, cavityRadiusPx / terrain.pixelsPerUnit + 0.25f);
         return site;
     }
 
