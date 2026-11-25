@@ -17,7 +17,7 @@ public class ShardInventory : MonoBehaviour
     public bool autoDeliverOnSurface = true;
 
     [Tooltip("true: かけらに触れた瞬間に、その場で自動的に食べる(効果と吹き出しが出る。持ち物には入らない)。false: 持ち物に入り、キーで食べる・地上で納める")]
-    public bool autoEatOnPickup = true;
+    public bool autoEatOnPickup = false;
 
     [Header("Debug (開発用)")]
     [Tooltip("ゲーム開始時に、各種類のかけらをこの数ずつ持った状態で始める。0なら何も持たない")]
@@ -43,18 +43,9 @@ public class ShardInventory : MonoBehaviour
         if (startWithEach > 0) for (int i = 0; i < carried.Length; i++) carried[i] += startWithEach;
     }
 
-    void Update()
+void Update()
     {
-        // キーボード1〜6:その感情を食べる
-        int idx = MoleInput.ShardEatIndex();
-        if (idx >= 0 && idx < EmotionInfo.Count)
-        {
-            selected = idx;
-            TryEat((EmotionType)idx);
-        }
-        // 選択切り替え(Tab / L1) と 選択中を食べる(E / ○)
-        if (MoleInput.ShardCyclePressed()) selected = (selected + 1) % EmotionInfo.Count;
-        if (MoleInput.ShardEatSelectedPressed()) TryEat((EmotionType)selected);
+        // かけらを使う操作は、BaseMenu の「かけらを使う」画面(Eキー / ○ボタンで開く)から行う。
 
         // デバッグ:Gキーで全種類を1つずつ手に入れる
         if (MoleInput.DebugGiveShardsPressed())

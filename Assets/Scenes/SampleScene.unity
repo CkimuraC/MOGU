@@ -194,6 +194,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a326ff9c94a62d847b13fed693017dd2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BaseMenu
+  confirmBeforeUse: 1
 --- !u!114 &357175279
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1085,7 +1086,7 @@ MonoBehaviour:
   delivered: 000000000000000000000000000000000000000000000000
   selected: 0
   autoDeliverOnSurface: 1
-  autoEatOnPickup: 1
+  autoEatOnPickup: 0
   startWithEach: 0
 --- !u!114 &1890067549
 MonoBehaviour:

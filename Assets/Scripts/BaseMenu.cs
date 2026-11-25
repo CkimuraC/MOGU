@@ -22,6 +22,7 @@ public class BaseMenu : MonoBehaviour
     {
         public string label;
         public string note;
+        public Color color = Color.white; // 文字の色(かけらは、感情の色にする)
         public bool enabled = true;
         public Action onChoose;
     }
@@ -35,6 +36,13 @@ public class BaseMenu : MonoBehaviour
     }
 
     public static bool IsOpen { get; private set; }
+
+    [Header("かけらを使う画面")]
+    [Tooltip("オン: かけらを選んだあと、「持ち帰る分もあるけど、どうしますか?」と確認する")]
+    public bool confirmBeforeUse = true;
+
+    ShardInventory inv;
+    EmotionEffects fx;
 
     BaseManager mgr;
     MoleController mole;
@@ -51,6 +59,8 @@ public class BaseMenu : MonoBehaviour
     {
         mgr = BaseManager.Instance != null ? BaseManager.Instance : FindFirstObjectByType<BaseManager>();
         mole = FindFirstObjectByType<MoleController>();
+        inv = FindFirstObjectByType<ShardInventory>();
+        fx = FindFirstObjectByType<EmotionEffects>();
     }
 
     void OnDisable()
@@ -65,6 +75,7 @@ public class BaseMenu : MonoBehaviour
         if (page == null)
         {
             if (MoleInput.MenuOpenPressed()) OpenMenu();
+            else if (MoleInput.ShardMenuPressed()) OpenShardMenu(); // E / ○: かけらを使う
             return; // 開いたフレームでは、決定などを受け付けない
         }
 
@@ -83,6 +94,87 @@ public class BaseMenu : MonoBehaviour
         var at = mgr.NearestBaseWithin(mole.transform.position, mgr.interactRadius);
         if (at != null) ShowBaseMain(at); else ShowMain();
     }
+
+/// <summary>「かけらを使う」画面を開く(Eキー / ○ボタン)。</summary>
+    public void OpenShardMenu()
+    {
+        if (inv == null) inv = FindFirstObjectByType<ShardInventory>();
+        if (fx == null) fx = FindFirstObjectByType<EmotionEffects>();
+        if (inv == null) return;
+        ShowShardSelect();
+    }
+
+    /// <summary>効果の説明 + 効く時間 + (すでに効いていれば)その旨。</summary>
+    string EffectNote(EmotionType t)
+    {
+        string s = EmotionInfo.EffectText(t);
+        if (fx != null)
+        {
+            for (int i = 0; i < fx.defs.Count; i++)
+                if (fx.defs[i].type == t) { s += "(" + Mathf.RoundToInt(fx.defs[i].duration) + "秒)"; break; }
+            if (fx.IsActive(t)) s += "  ★効果中(使うと、時間がのびる)";
+        }
+        return s;
+    }
+
+    /// <summary>どのかけらを使うか選ぶ画面。持ち帰る分にもなることを、補足で伝える。</summary>
+    void ShowShardSelect()
+    {
+        var p = new Page { title = "かけらを使う" };
+        int total = inv.CarriedTotal;
+
+        if (total <= 0)
+        {
+            p.lines.Add("使えるかけらを、いまは持っていません。");
+            p.lines.Add("かけらを拾うと、ここから選んで使えます。");
+            p.choices.Add(C("もどる", Close));
+            p.onCancel = Close;
+            Show(p);
+            return;
+        }
+
+        p.lines.Add("使うかけらを選んでください。使うと、その感情の効果が、しばらくつきます。");
+        p.lines.Add("※ かけらは、地上へ持ち帰る分にもなります。使うと、持ち帰る分が減ります。(持っている数: 合計" + total + "個)");
+
+        for (int i = 0; i < EmotionInfo.Count; i++)
+        {
+            var t = (EmotionType)i;
+            int n = inv.carried[i];
+            var ch = C(EmotionInfo.NameJp(t) + "   ×" + n, () => OnPickShard(t), n > 0, n > 0 ? EffectNote(t) : "持っていません");
+            ch.color = EmotionInfo.ColorOf(t);
+            p.choices.Add(ch);
+        }
+        p.choices.Add(C("使わない(すべて持ち帰る分にする)", Close));
+        p.onCancel = Close;
+        Show(p);
+    }
+
+    /// <summary>かけらを選んだあと: 「持ち帰る分もあるけど、どうしますか?」と確認する。</summary>
+    void OnPickShard(EmotionType t)
+    {
+        if (!confirmBeforeUse) { UseShard(t); return; }
+
+        int n = inv.carried[(int)t];
+        var p = new Page { title = EmotionInfo.NameJp(t) + "のかけらを使いますか?" };
+        p.lines.Add("このかけらは、持ち帰る分にもなります。使うと、持ち帰る分が1つ減ります。(いま " + n + "個 → 使うと " + (n - 1) + "個)");
+        p.lines.Add("使うか、持ち帰る分にとっておくか、どうしますか?");
+        p.lines.Add("効果: " + EffectNote(t));
+
+        var use = C("使う", () => UseShard(t), true, "効果が、しばらくつきます");
+        use.color = EmotionInfo.ColorOf(t);
+        p.choices.Add(use);
+        p.choices.Add(C("使わずに、持ち帰る分にとっておく", ShowShardSelect));
+        p.onCancel = ShowShardSelect;
+        Show(p);
+    }
+
+    void UseShard(EmotionType t)
+    {
+        bool ok = inv.TryEat(t);
+        Close();
+        if (ok) Toast(EmotionInfo.NameJp(t) + "のかけらを使いました。" + EffectNote(t));
+    }
+
 
     public void Choose(int index)
     {
@@ -429,7 +521,7 @@ public class BaseMenu : MonoBehaviour
                     Fill(new Rect(rect.x, rect.y, t, rect.height), oc);
                     Fill(new Rect(rect.xMax - t, rect.y, t, rect.height), oc);
                 }
-                Color tc = !c.enabled ? new Color(0.5f, 0.5f, 0.5f) : Color.white;
+                Color tc = !c.enabled ? new Color(0.5f, 0.5f, 0.5f) : c.color;
                 bool hasNote = !string.IsNullOrEmpty(c.note);
                 float lx = rect.x + UiText.Px(18);
                 if (hasNote)

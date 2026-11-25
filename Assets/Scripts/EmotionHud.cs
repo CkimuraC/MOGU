@@ -31,7 +31,7 @@ void OnGUI()
         UiText.Label(new Rect(x, y, w, lh), "持っているかけら", 18, Color.white);
         y += lh;
         UiText.Label(new Rect(x, y, w, lh),
-            inv.autoEatOnPickup ? "触れると自動で食べます" : "食べる: 1〜6 / E    選ぶ: Tab(パッド: L1 / ○)",
+            inv.autoEatOnPickup ? "触れると自動で使います" : "使う: Eキー / ○ で、選んで使う",
             15, gray);
         y += lh;
 
@@ -39,7 +39,7 @@ void OnGUI()
         {
             var t = (EmotionType)i;
             Color c = inv.carried[i] > 0 ? EmotionInfo.ColorOf(t) : new Color(0.62f, 0.62f, 0.62f, 0.8f);
-            string mark = i == inv.selected ? "▶ " : "　 ";
+            string mark = "　 ";
             UiText.Label(new Rect(x, y, w, lh),
                 mark + (i + 1) + "  " + EmotionInfo.NameJp(t) + "  ×" + inv.carried[i], 18, c);
             y += lh;

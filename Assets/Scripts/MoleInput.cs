@@ -183,6 +183,13 @@ public static int ShardEatIndex() { return InputBlocked ? -1 : ShardEatIndexRaw(
 #endif
     }
 
+/// <summary>「かけらを使う」画面を開く。Eキー / ○ボタン。(メニューが閉じているときに調べる)</summary>
+    public static bool ShardMenuPressed()
+    {
+        return ShardEatSelectedPressedRaw();
+    }
+
+
 /// <summary>画面を引いて見る(押している間)。Zキー / R3(右スティックを押し込む)</summary>
     public static bool ZoomOutHeld() { return !InputBlocked && ZoomOutHeldRaw(); }
 

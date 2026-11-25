@@ -32,4 +32,18 @@ public static class EmotionInfo
     public static Color ColorOf(EmotionType t) { return colors[(int)t]; }
     public static string NameEn(EmotionType t) { return namesEn[(int)t]; }
     public static string NameJp(EmotionType t) { return namesJp[(int)t]; }
+
+    /// <summary>効果の短い説明(かけらを使う画面に出す)</summary>
+    public static string EffectText(EmotionType t)
+    {
+        switch (t)
+        {
+            case EmotionType.Joy: return "移動と掘る速さがアップ";
+            case EmotionType.Anger: return "掘る力がアップ(硬い土も掘れる)。スタミナ消費は増える";
+            case EmotionType.Sadness: return "移動はゆっくりになるが、スタミナ消費が減る";
+            case EmotionType.Fear: return "スキャンの範囲がアップ";
+            case EmotionType.Calm: return "スタミナがじわじわ回復";
+            default: return "特殊な空間の探知範囲がアップ";
+        }
+    }
 }
