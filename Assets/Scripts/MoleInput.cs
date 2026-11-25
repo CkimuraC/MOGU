@@ -11,10 +11,15 @@ using UnityEngine.InputSystem;
 public static class MoleInput
 {
     const float StickDeadzone = 0.25f;
+
+    /// <summary>true の間は、モグラの操作(移動・掘る・スキャン・かけらを食べる・スタミナ回復)を受け付けない。メニューが立てる。</summary>
+    public static bool InputBlocked;
     const float TriggerThreshold = 0.3f;
 
     /// <summary>移動入力。スティックは360度の向きをそのまま返す(長さは最大1)。</summary>
-    public static Vector2 Move()
+    public static Vector2 Move() { return InputBlocked ? Vector2.zero : MoveRaw(); }
+
+    static Vector2 MoveRaw()
     {
 #if ENABLE_INPUT_SYSTEM
         Vector2 v = Vector2.zero;
@@ -52,7 +57,9 @@ public static class MoleInput
     }
 
     /// <summary>掘削ボタン(押している間)。Shift / R2 / R1 / □</summary>
-    public static bool DigHeld()
+    public static bool DigHeld() { return !InputBlocked && DigHeldRaw(); }
+
+    static bool DigHeldRaw()
     {
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
@@ -72,7 +79,9 @@ public static class MoleInput
     }
 
     /// <summary>スタミナ全回復(デバッグ)。R / OPTIONSボタン</summary>
-    public static bool RefillPressed()
+    public static bool RefillPressed() { return !InputBlocked && RefillPressedRaw(); }
+
+    static bool RefillPressedRaw()
     {
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
@@ -85,7 +94,9 @@ public static class MoleInput
     }
 
 /// <summary>探知(スキャン)ボタン。Q / L2 / △</summary>
-    public static bool ScanPressed()
+    public static bool ScanPressed() { return !InputBlocked && ScanPressedRaw(); }
+
+    static bool ScanPressedRaw()
     {
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
@@ -109,7 +120,9 @@ public static class MoleInput
     }
 
 /// <summary>感情のかけらを食べる(キーボード1〜6)。押された番号(0〜5)、なければ-1</summary>
-public static int ShardEatIndex()
+public static int ShardEatIndex() { return InputBlocked ? -1 : ShardEatIndexRaw(); }
+
+    static int ShardEatIndexRaw()
     {
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
@@ -130,7 +143,9 @@ public static int ShardEatIndex()
     }
 
     /// <summary>食べるかけらの選択を切り替える。Tab / L1</summary>
-    public static bool ShardCyclePressed()
+    public static bool ShardCyclePressed() { return !InputBlocked && ShardCyclePressedRaw(); }
+
+    static bool ShardCyclePressedRaw()
     {
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
@@ -143,7 +158,9 @@ public static int ShardEatIndex()
     }
 
     /// <summary>選択中のかけらを食べる。E / ○</summary>
-    public static bool ShardEatSelectedPressed()
+    public static bool ShardEatSelectedPressed() { return !InputBlocked && ShardEatSelectedPressedRaw(); }
+
+    static bool ShardEatSelectedPressedRaw()
     {
 #if ENABLE_INPUT_SYSTEM
         var k = Keyboard.current;
@@ -176,6 +193,78 @@ public static int ShardEatIndex()
         return Input.GetKeyDown(KeyCode.F2);
 #endif
     }
+
+// ---------------- メニュー用(InputBlocked の影響を受けない) ----------------
+
+    static int prevStickDir;
+
+    /// <summary>拠点メニューを開く(開いているときは、閉じる)。Bキー / ×ボタン</summary>
+    public static bool MenuOpenPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        if (k != null && k.bKey.wasPressedThisFrame) return true;
+        var g = Gamepad.current;
+        return g != null && g.buttonSouth.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.B);
+#endif
+    }
+
+    /// <summary>メニューの上下移動(押した瞬間だけ)。上=+1、下=-1、なし=0。矢印 / W・S / 十字キー / 左スティック</summary>
+    public static int MenuMoveEdge()
+    {
+        int edge = 0;
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        if (k != null)
+        {
+            if (k.upArrowKey.wasPressedThisFrame || k.wKey.wasPressedThisFrame) edge = 1;
+            else if (k.downArrowKey.wasPressedThisFrame || k.sKey.wasPressedThisFrame) edge = -1;
+        }
+        var g = Gamepad.current;
+        if (g != null)
+        {
+            if (g.dpad.up.wasPressedThisFrame) edge = 1;
+            else if (g.dpad.down.wasPressedThisFrame) edge = -1;
+            float sy = g.leftStick.ReadValue().y;
+            int dir = sy > 0.6f ? 1 : (sy < -0.6f ? -1 : 0);
+            if (dir != 0 && dir != prevStickDir) edge = dir;
+            prevStickDir = dir;
+        }
+#else
+        if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W)) edge = 1;
+        else if (Input.GetKeyDown(KeyCode.DownArrow) || Input.GetKeyDown(KeyCode.S)) edge = -1;
+#endif
+        return edge;
+    }
+
+    /// <summary>メニューの決定。Enter / Space / ×ボタン</summary>
+    public static bool MenuConfirmPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        if (k != null && (k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame || k.spaceKey.wasPressedThisFrame)) return true;
+        var g = Gamepad.current;
+        return g != null && g.buttonSouth.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.Space);
+#endif
+    }
+
+    /// <summary>メニューのもどる。Esc / Backspace / ○ボタン</summary>
+    public static bool MenuCancelPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        if (k != null && (k.escapeKey.wasPressedThisFrame || k.backspaceKey.wasPressedThisFrame)) return true;
+        var g = Gamepad.current;
+        return g != null && g.buttonEast.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Backspace);
+#endif
+    }
+
 
 
 

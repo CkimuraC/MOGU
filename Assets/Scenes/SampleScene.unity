@@ -164,6 +164,72 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &357175277
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 357175280}
+  - component: {fileID: 357175279}
+  - component: {fileID: 357175278}
+  m_Layer: 0
+  m_Name: Bases
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &357175278
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 357175277}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a326ff9c94a62d847b13fed693017dd2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BaseMenu
+--- !u!114 &357175279
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 357175277}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 262776a857a17c14eabbe737105325fd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BaseManager
+  maxBases: 2
+  minDepthFromSurface: 6
+  minDistanceBetweenBases: 8
+  cavityRadiusPx: 36
+  interactRadius: 2
+  edgeMargin: 3
+  restResetsDepletion: 1
+  loadSavedBasesOnLaunch: 1
+  showStartMenuOnLaunch: 0
+--- !u!4 &357175280
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 357175277}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -349,6 +415,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StaminaHud
   mole: {fileID: 0}
+  showRecoveryHelp: 1
+  depletedBannerSeconds: 4
 --- !u!4 &525666474
 Transform:
   m_ObjectHideFlags: 0
@@ -953,6 +1021,12 @@ MonoBehaviour:
   regenPerSecond: 5
   regenDelay: 0.5
   exhaustRecoverThreshold: 20
+  regenMulByDepletion:
+  - 1
+  - 0.6
+  - 0.3
+  - 0.05
+  resetDepletionOnSurface: 1
   hardnessSpeedInfluence: 0.6
   hardnessStaminaInfluence: 1
   sprite: {fileID: -4211702332014267518, guid: 18d169da16a1f8942b5e179b3a9e76ab, type: 3}
@@ -1118,3 +1192,4 @@ SceneRoots:
   - {fileID: 752905409}
   - {fileID: 1138731304}
   - {fileID: 240407654}
+  - {fileID: 357175280}

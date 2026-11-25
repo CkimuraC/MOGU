@@ -104,6 +104,17 @@ void OnGUI()
             y += lh;
         }
 
+        // 拠点の数と、拠点の中にいるときの案内
+        var bm = BaseManager.Instance;
+        if (bm != null)
+        {
+            bool atBase = bm.NearestBaseWithin(mole.transform.position, bm.interactRadius) != null;
+            string bs = "拠点: " + bm.Count + " / " + bm.maxBases +
+                        (atBase ? "   拠点の中: Bキーで 休息・セーブ・ワープ" : "   Bキーで拠点メニュー");
+            UiText.Label(new Rect(x, y, w, lh), bs, 18, atBase ? new Color(1f, 0.85f, 0.4f) : new Color(0.9f, 0.9f, 0.9f));
+            y += lh;
+        }
+
         // 補助の説明(プレイヤー向け・仮)。デバッグパネルを開いている間は、重ならないよう隠す。
         if (showRecoveryHelp && !DebugPanel.IsOpen)
         {
@@ -127,6 +138,7 @@ void OnGUI()
     // スタミナが切れた瞬間のお知らせ(画面の上のほう)
     void DrawDepletedBanner()
     {
+        if (mole.DepletionCount <= 0) return; // 休息などで回数が0に戻ったら、お知らせは出さない
         if (Time.time - mole.LastDepletedTime >= depletedBannerSeconds) return;
 
         float m = mole.RegenMultiplierFor(mole.DepletionCount);
@@ -145,8 +157,8 @@ void OnGUI()
         float w = Screen.width - x * 2f;
         string[] lines =
         {
-            "【キーボード】 WASD/矢印=移動   Shift=掘る   Q=スキャン   1〜6/E=かけらを食べる   Tab=選ぶ   F2=デバッグ",
-            "【パッド】 左スティック=移動   R2/R1/□=掘る   L2/△=スキャン   L1=選ぶ   ○=食べる",
+            "【キーボード】 WASD/矢印=移動   Shift=掘る   Q=スキャン   1〜6/E=かけらを食べる   Tab=選ぶ   B=拠点メニュー   F2=デバッグ",
+            "【パッド】 左スティック=移動   R2/R1/□=掘る   L2/△=スキャン   L1=選ぶ   ○=食べる   ×=拠点メニュー",
             "【開発用】 L=暗闇オンオフ   R=スタミナ回復   G=かけらを各1個入手"
         };
         float y = Screen.height - lh * lines.Length - UiText.Px(10);

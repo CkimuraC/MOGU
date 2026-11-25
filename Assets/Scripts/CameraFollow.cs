@@ -37,6 +37,16 @@ public class CameraFollow : MonoBehaviour
         }
     }
 
+/// <summary>カメラを、すぐに追従先へ移す(ワープ・帰還のあとに使う)。</summary>
+    public void Snap()
+    {
+        if (target == null) return;
+        var p = Clamp(target.position);
+        transform.position = new Vector3(p.x, p.y, transform.position.z);
+        velocity = Vector3.zero;
+    }
+
+
     Vector2 Clamp(Vector2 p)
     {
         if (terrain == null) return p;

@@ -105,6 +105,8 @@ void OnGUI()
             GUILayout.Space(UiText.Px(10));
             DrawStamina();
             GUILayout.Space(UiText.Px(10));
+            DrawBases();
+            GUILayout.Space(UiText.Px(10));
             DrawDisplay();
             // ★ここに足す: DrawTeleport(); DrawShards(); など
             GUILayout.EndScrollView();
@@ -193,6 +195,33 @@ void DrawDarkness()
         if (GUILayout.Button("スタミナを全回復", GUILayout.Height(RowH))) mole.DebugRefill();
     }
 
+// ---------------- 拠点 ----------------
+    void DrawBases()
+    {
+        GUILayout.Label("―― 拠点 ――", GUILayout.Height(RowH));
+        var bm = BaseManager.Instance;
+        if (bm == null)
+        {
+            GUILayout.Label("(BaseManager が見つかりません)", GUILayout.Height(RowH));
+            return;
+        }
+
+        GUILayout.Label("拠点 " + bm.Count + " / " + bm.maxBases + "   セーブデータ: " + (bm.HasSaveFile ? "あり" : "なし"), GUILayout.Height(RowH));
+
+        bm.maxBases = Mathf.RoundToInt(Slider("最大拠点数", bm.maxBases, 1f, 5f, "0"));
+        bm.minDepthFromSurface = Slider("作れない深さ(地表から)", bm.minDepthFromSurface, 0f, 20f, "0.0");
+        bm.minDistanceBetweenBases = Slider("拠点どうしの最小の距離", bm.minDistanceBetweenBases, 0f, 30f, "0.0");
+        bm.minDistanceFromInitial = Slider("初期位置からの最小の距離", bm.minDistanceFromInitial, 0f, 30f, "0.0");
+        bm.interactRadius = Slider("拠点の中とみなす距離", bm.interactRadius, 0.5f, 6f, "0.0");
+        bm.restResetsDepletion = Toggle("休息でスタミナ切れ回数もリセット", bm.restResetsDepletion);
+
+        if (GUILayout.Button("ここに拠点を作る(ルール無視)", GUILayout.Height(RowH))) bm.DebugBuildHere();
+        if (GUILayout.Button("拠点をすべて削除", GUILayout.Height(RowH))) bm.DeleteAll();
+        if (GUILayout.Button("拠点のセーブデータを削除", GUILayout.Height(RowH))) bm.DeleteSaveFile();
+        if (GUILayout.Button("初期位置へ移動", GUILayout.Height(RowH))) bm.ReturnToInitial();
+    }
+
+
 
 // ---------------- 表示 ----------------
 void DrawDisplay()
@@ -204,7 +233,7 @@ void DrawDisplay()
 
 
     // ---------------- 部品 ----------------
-static float Slider(string label, float value, float min, float max)
+static float Slider(string label, float value, float min, float max, string format = "0.00")
     {
         GUILayout.BeginHorizontal(GUILayout.Height(RowH));
         GUILayout.Label(label, GUILayout.Width(UiText.Px(300)), GUILayout.Height(RowH));
@@ -240,7 +269,7 @@ static float Slider(string label, float value, float min, float max)
         // 操作の受け付け(見た目は上で描いたものを使うので、スタイルは空にする)
         value = GUI.HorizontalSlider(r, value, min, max, GUIStyle.none, GUIStyle.none);
 
-        GUILayout.Label(value.ToString("0.00"), GUILayout.Width(UiText.Px(70)), GUILayout.Height(RowH));
+        GUILayout.Label(value.ToString(format), GUILayout.Width(UiText.Px(70)), GUILayout.Height(RowH));
         GUILayout.EndHorizontal();
         return value;
     }
