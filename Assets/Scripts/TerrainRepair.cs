@@ -400,4 +400,57 @@ bool CanFill(int x, int y)
         if (hasDug != null) for (int c = 0; c < hasDug.Length; c++) sleepUntil[c] = 0f;
         return n;
     }
+
+/// <summary>
+    /// この円の中の穴を、「待たずに、いますぐ埋める対象」にする。(拠点を消したあとの空洞など)
+    /// instant=true なら、その場で埋める。false なら、待ち時間なしで、砂が溜まり始める。
+    /// モグラの周りは、埋もれないよう、残す(モグラが離れたら、埋まる)。
+    /// 呼ぶ前に、その場所の「埋めない」登録は、外しておくこと。
+    /// </summary>
+    public int ReleaseArea(Vector2 center, float radiusUnits, bool instant)
+    {
+        if (terrain == null || hasDug == null) return 0;
+        if (!repairEnabled) instant = true; // 自動修復を切っているときは、待っても埋まらないので、その場で埋める
+
+        float ppu = terrain.pixelsPerUnit;
+        Vector2 min = terrain.MinWorld;
+        int x0 = Mathf.Clamp(Mathf.FloorToInt((center.x - radiusUnits - min.x) * ppu), 0, width - 1);
+        int x1 = Mathf.Clamp(Mathf.CeilToInt((center.x + radiusUnits - min.x) * ppu), 0, width - 1);
+        int y0 = Mathf.Clamp(Mathf.FloorToInt((center.y - radiusUnits - min.y) * ppu), 0, height - 1);
+        int y1 = Mathf.Clamp(Mathf.CeilToInt((center.y + radiusUnits - min.y) * ppu), 0, height - 1);
+
+        // 範囲にかかるブロックを、「掘ってから十分に時間がたった」状態にして、すぐ修復が始まるようにする
+        int cs = Mathf.Max(8, chunkSizePx);
+        float due = Now - repairDelaySeconds - 0.01f;
+        for (int cy = y0 / cs; cy <= y1 / cs; cy++)
+        {
+            for (int cx = x0 / cs; cx <= x1 / cs; cx++)
+            {
+                int c = cy * cols + cx;
+                if (lastDug[c] > due) lastDug[c] = due;
+                hasDug[c] = true;
+                sleepUntil[c] = 0f;
+            }
+        }
+        if (!instant) return 0;
+
+        // その場で埋める(円の中の、掘られた画素。モグラの周りと、埋めない場所は除く)
+        Vector2 molePos = mole != null ? (Vector2)mole.transform.position : Vector2.zero;
+        var list = new List<int>();
+        for (int y = y0; y <= y1; y++)
+        {
+            for (int x = x0; x <= x1; x++)
+            {
+                int i = y * width + x;
+                if (!terrain.IsDugIndex(i)) continue;
+                float wx = min.x + (x + 0.5f) / ppu, wy = min.y + (y + 0.5f) / ppu;
+                float dx = wx - center.x, dy = wy - center.y;
+                if (dx * dx + dy * dy > radiusUnits * radiusUnits) continue;
+                if (IsProtected(wx, wy, molePos)) continue;
+                list.Add(i);
+            }
+        }
+        return terrain.RefillPixels(list, sandColor, sandTint);
+    }
+
 }

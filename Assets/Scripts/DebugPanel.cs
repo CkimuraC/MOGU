@@ -197,6 +197,17 @@ void DrawDarkness()
         mole.resetDepletionOnSurface = Toggle("地上に戻ると回数をリセット", mole.resetDepletionOnSurface);
         if (GUILayout.Button("切れた回数をリセット", GUILayout.Height(RowH))) mole.ResetDepletion();
         if (GUILayout.Button("スタミナを全回復", GUILayout.Height(RowH))) mole.DebugRefill();
+
+        // ---- 疲れ(掘れる量・ゆっくり掘る・フリーズ) ----
+        GUILayout.Label("疲れ: " + (mole.Exhausted ? "掘れない" : "掘れる") + "   掘る速さ ×" + mole.TiredDigMul.ToString("0.00") +
+                        "   フリーズ: " + (mole.Frozen ? "あと" + mole.FreezeRemaining.ToString("0.0") + "秒" : "なし") +
+                        "   失敗 " + mole.DigAttempts + "/" + mole.freezeAfterAttempts, GUILayout.Height(RowH));
+        mole.exhaustRecoverThreshold = Slider("掘れるようになる量(スタミナ)", mole.exhaustRecoverThreshold, 0f, 40f, "0");
+        mole.tiredFullSpeedStamina = Slider("ふつうの速さで掘れる量", mole.tiredFullSpeedStamina, 0f, 80f, "0");
+        mole.tiredMinDigSpeedMul = Slider("いちばん疲れたときの掘る速さ(倍)", mole.tiredMinDigSpeedMul, 0.05f, 1f);
+        mole.freezeAfterAttempts = Mathf.RoundToInt(Slider("フリーズまでの失敗回数", mole.freezeAfterAttempts, 1f, 10f, "0"));
+        mole.freezeSeconds = Slider("フリーズの長さ(秒)", mole.freezeSeconds, 0f, 10f, "0.0");
+        if (GUILayout.Button("いますぐフリーズさせる(確認用)", GUILayout.Height(RowH))) mole.DebugFreezeNow();
     }
 
 // ---------------- 拠点 ----------------
@@ -220,7 +231,7 @@ void DrawDarkness()
         bm.restResetsDepletion = Toggle("休息でスタミナ切れ回数もリセット", bm.restResetsDepletion);
 
         if (GUILayout.Button("ここに拠点を作る(ルール無視)", GUILayout.Height(RowH))) bm.DebugBuildHere();
-        if (GUILayout.Button("拠点をすべて削除", GUILayout.Height(RowH))) bm.DeleteAll();
+        if (GUILayout.Button("拠点をすべて削除(空洞も埋める)", GUILayout.Height(RowH))) bm.DeleteAll();
         if (GUILayout.Button("拠点のセーブデータを削除", GUILayout.Height(RowH))) bm.DeleteSaveFile();
         if (GUILayout.Button("初期位置へ移動", GUILayout.Height(RowH))) bm.ReturnToInitial();
     }

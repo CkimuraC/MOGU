@@ -223,17 +223,25 @@ public class BaseManager : MonoBehaviour
         return CreateSite(slot, ++seqCounter, pos);
     }
 
-    public void Delete(BaseSite b)
+public void Delete(BaseSite b, bool instantFill = false)
     {
         if (b == null) return;
         if (b.marker != null) Destroy(b.marker);
-        if (b.protectId >= 0 && TerrainRepair.Instance != null) TerrainRepair.Instance.RemoveProtected(b.protectId);
+
+        // 空洞を、埋める対象にする(先に「埋めない」登録を外す)
+        var rep = TerrainRepair.Instance;
+        if (rep != null)
+        {
+            if (b.protectId >= 0) rep.RemoveProtected(b.protectId);
+            if (terrain != null) rep.ReleaseArea(b.position, cavityRadiusPx / terrain.pixelsPerUnit + 0.3f, instantFill);
+        }
         bases.Remove(b);
     }
 
-    public void DeleteAll()
+public void DeleteAll()
     {
-        for (int i = bases.Count - 1; i >= 0; i--) Delete(bases[i]);
+        // リセット: 空洞も、その場で埋める
+        for (int i = bases.Count - 1; i >= 0; i--) Delete(bases[i], true);
     }
 
     BaseSite CreateSite(int slot, int seq, Vector2 pos)

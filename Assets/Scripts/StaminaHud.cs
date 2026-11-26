@@ -71,9 +71,18 @@ void OnGUI()
         }
         if (mole.Exhausted)
         {
-            string tired = "疲れた… 休むと回復します";
+            string tired = "疲れた… スタミナが" + Mathf.CeilToInt(mole.exhaustRecoverThreshold) + "まで回復すると、また掘れます";
             if (mole.DepletionCount > 0) tired += "(回復の速さ ×" + mole.RegenMultiplier.ToString("0.00") + ")";
             UiText.Label(new Rect(x, y, w, lh), tired, 18, new Color(1f, 0.45f, 0.4f));
+            y += lh;
+        }
+
+        // スタミナが少ないあいだは、ゆっくり掘る
+        if (!mole.Exhausted && mole.TiredDigMul < 0.99f)
+        {
+            UiText.Label(new Rect(x, y, w, lh),
+                "スタミナが少ないので、ゆっくり掘ります(掘る速さ ×" + mole.TiredDigMul.ToString("0.00") + ")",
+                18, new Color(1f, 0.8f, 0.5f));
             y += lh;
         }
 
@@ -133,6 +142,7 @@ void OnGUI()
 
         DrawControls();
         DrawDepletedBanner();
+        DrawFatigueMessage();
     }
 
     // スタミナが切れた瞬間のお知らせ(画面の上のほう)
@@ -148,6 +158,30 @@ void OnGUI()
             "スタミナ切れ!(" + mole.DepletionCount + "回目)  " + tail,
             26, new Color(1f, 0.7f, 0.45f, 0.97f), TextAnchor.UpperCenter);
     }
+
+// 疲れて掘れないとき・フリーズ中の説明(画面の上のほう)
+    void DrawFatigueMessage()
+    {
+        float big = UiText.Line(24);
+        float y = UiText.Px(300);
+
+        if (mole.Frozen)
+        {
+            UiText.Label(new Rect(0, y, Screen.width, big),
+                "疲れて動けません…(あと" + mole.FreezeRemaining.ToString("0.0") + "秒)",
+                24, new Color(1f, 0.5f, 0.45f, 0.97f), TextAnchor.UpperCenter);
+            return;
+        }
+
+        if (Time.time - mole.LastFailedDigTime < 2f)
+        {
+            int left = Mathf.Max(0, mole.freezeAfterAttempts - mole.DigAttempts);
+            UiText.Label(new Rect(0, y, Screen.width, big),
+                "疲れていて、掘れません…あと" + left + "回むりに掘ると、動けなくなります",
+                22, new Color(1f, 0.75f, 0.5f, 0.97f), TextAnchor.UpperCenter);
+        }
+    }
+
 
     // 操作の説明(画面の左下)
     void DrawControls()

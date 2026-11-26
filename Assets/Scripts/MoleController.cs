@@ -41,7 +41,47 @@ public class MoleController : MonoBehaviour
     public float regenPerSecond = 8f;
     public float regenDelay = 0.5f;
     [Tooltip("スタミナ切れ後、この量まで回復するまで掘れない(0で無効)。ガクガク進むのを防ぐ")]
-    public float exhaustRecoverThreshold = 20f;
+    public float exhaustRecoverThreshold = 5f;
+
+    [Header("Fatigue (疲れ)")]
+    [Tooltip("この量以上のスタミナがあれば、ふつうの速さで掘れる。「掘れるようになる量」からこの量までは、スタミナが少ないほど、ゆっくり掘る")]
+    public float tiredFullSpeedStamina = 20f;
+    [Range(0.05f, 1f)]
+    [Tooltip("スタミナが「掘れるようになる量」のとき、ふつうの何倍の速さで掘るか(0.2=5分の1)")]
+    public float tiredMinDigSpeedMul = 0.2f;
+    [Tooltip("疲れて掘れないとき、むりに掘ろうとした回数がこれになると、フリーズする")]
+    public int freezeAfterAttempts = 3;
+    [Tooltip("フリーズする時間(秒)。動けない・掘れない")]
+    public float freezeSeconds = 4f;
+    [Tooltip("むりに掘ろうとした回数を、数え続ける時間(秒)。これより間があくと、0に戻る")]
+    public float attemptWindowSeconds = 4f;
+    [Tooltip("掘るボタンを押しっぱなしのとき、何秒ごとに「もう1回掘ろうとした」と数えるか")]
+    public float attemptRepeatSeconds = 1f;
+
+    float frozenUntil;
+    float lastAttemptTime = -999f;
+    int attempts;
+    bool prevDigHeld;
+
+    /// <summary>疲れて、フリーズしている最中か(動けない・掘れない)</summary>
+    public bool Frozen { get { return Time.time < frozenUntil; } }
+    /// <summary>フリーズの残り時間(秒)</summary>
+    public float FreezeRemaining { get { return Mathf.Max(0f, frozenUntil - Time.time); } }
+    /// <summary>むりに掘ろうとした回数(数え続けている間)</summary>
+    public int DigAttempts { get { return Time.time - lastAttemptTime > attemptWindowSeconds ? 0 : attempts; } }
+    /// <summary>最後に、疲れて掘れなかった時刻(画面の説明用)</summary>
+    public float LastFailedDigTime { get; private set; } = -999f;
+
+    /// <summary>疲れによる、掘る速さの倍率。「掘れるようになる量」で最小、「ふつうの速さで掘れる量」で1。</summary>
+    public float TiredDigMul
+    {
+        get
+        {
+            if (tiredFullSpeedStamina <= exhaustRecoverThreshold) return 1f;
+            float t = Mathf.InverseLerp(exhaustRecoverThreshold, tiredFullSpeedStamina, Stamina);
+            return Mathf.Lerp(tiredMinDigSpeedMul, 1f, t);
+        }
+    }
 
     [Header("Recovery Penalty (スタミナ切れのペナルティ)")]
     [Tooltip("スタミナが切れた回数ごとの、回復の速さの倍率。1番目=1回目に切れたあと、2番目=2回目…。足りない分は最後の値を使う")]
@@ -210,9 +250,19 @@ void Update()
 
         Vector2 input = MoleInput.Move();
         bool digHeld = MoleInput.DigHeld();
+        if (Frozen) { input = Vector2.zero; digHeld = false; } // フリーズ中は、動けない・掘れない
         if (MoleInput.RefillPressed()) { Stamina = MaxStaminaCurrent; Exhausted = false; } // デバッグ用
 
         if (Exhausted && Stamina >= exhaustRecoverThreshold) Exhausted = false;
+
+        // 疲れて掘れないのに、土に向かって何度も掘ろうとすると、フリーズする
+        bool digEdge = digHeld && !prevDigHeld;
+        prevDigHeld = digHeld;
+        if (!Frozen && Exhausted && digHeld && input.sqrMagnitude > 0.0001f)
+        {
+            Vector2 ahead = (Vector2)transform.position + input.normalized * 0.12f;
+            if (Blocked(ahead) && (digEdge || Time.time - lastAttemptTime >= attemptRepeatSeconds)) RegisterDigAttempt();
+        }
 
         bool dugThisFrame = false;
 
@@ -278,12 +328,38 @@ void Update()
         Recovering = false;
     }
 
+/// <summary>疲れて掘れないのに、掘ろうとした。回数を数えて、たまるとフリーズする。</summary>
+    void RegisterDigAttempt()
+    {
+        float now = Time.time;
+        if (now - lastAttemptTime > attemptWindowSeconds) attempts = 0; // 間があいたので、数え直す
+        attempts++;
+        lastAttemptTime = now;
+        LastFailedDigTime = now;
+        if (attempts >= freezeAfterAttempts) StartFreeze();
+    }
+
+    /// <summary>疲れて動けなくなる。freezeSeconds の間、動けない・掘れない。(回復は進む)</summary>
+    void StartFreeze()
+    {
+        frozenUntil = Time.time + freezeSeconds;
+        attempts = 0;
+        var thought = GetComponent<MoleThought>();
+        if (thought != null) thought.Say("はぁ…はぁ…", freezeSeconds); // 息が上がっている吹き出し
+    }
+
+    /// <summary>デバッグ用: いますぐフリーズさせる(確認用)</summary>
+    public void DebugFreezeNow() { StartFreeze(); }
+
+
     /// <summary>デバッグ用: スタミナを全回復する(切れた回数はそのまま)</summary>
-    public void DebugRefill()
+public void DebugRefill()
     {
         Stamina = MaxStaminaCurrent;
         Exhausted = false;
         Recovering = false;
+        frozenUntil = 0f; // フリーズも解く
+        attempts = 0;
     }
 
 
@@ -308,7 +384,7 @@ Vector2 Step(Vector2 pos, Vector2 dir, float dt, bool digHeld, ref bool dugThisF
             else
             {
                 float hard = terrain.HardnessAt(front);
-                float speedMul = DigMul / Mathf.Lerp(1f, hard, hardnessSpeedInfluence);
+                float speedMul = DigMul / Mathf.Lerp(1f, hard, hardnessSpeedInfluence) * TiredDigMul; // 疲れているほど、ゆっくり掘る
                 float costMul = Mathf.Lerp(1f, hard, hardnessStaminaInfluence) * CostMul;
 
                 Vector2 target = pos + dir * digSpeed * speedMul * dt;

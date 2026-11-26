@@ -1026,7 +1026,13 @@ MonoBehaviour:
   staminaPerPixel: 0.003
   regenPerSecond: 5
   regenDelay: 0.5
-  exhaustRecoverThreshold: 20
+  exhaustRecoverThreshold: 5
+  tiredFullSpeedStamina: 20
+  tiredMinDigSpeedMul: 0.2
+  freezeAfterAttempts: 3
+  freezeSeconds: 4
+  attemptWindowSeconds: 4
+  attemptRepeatSeconds: 1
   regenMulByDepletion:
   - 1
   - 0.6
