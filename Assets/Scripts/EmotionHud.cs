@@ -135,6 +135,12 @@ void OnGUI()
             UiText.Label(new Rect(0, cy, Screen.width, big), dust.ToastText, 24, new Color(1f, 1f, 1f, 0.9f), TextAnchor.UpperCenter);
             cy += big;
         }
+        if (mole != null && Time.time < mole.SlowDigUntil && Time.time >= mole.HardBlockedUntil)
+        {
+            UiText.Label(new Rect(0, cy, Screen.width, big), "硬い層を、ゆっくり掘っています…(「怒」を発動すると、普通に掘れます)",
+                24, new Color(1f, 0.85f, 0.6f, 0.97f), TextAnchor.UpperCenter);
+            cy += big;
+        }
         if (mole != null && Time.time < mole.HardBlockedUntil)
         {
             UiText.Label(new Rect(0, cy, Screen.width, big), "ここは硬すぎて掘れません!(「怒」を発動すると掘れるかも)",

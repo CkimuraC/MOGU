@@ -21,7 +21,9 @@ public class ItemSpawner : MonoBehaviour
     [Tooltip("感情のかけらの数(種類は6種からランダム。地層とは無関係に散らばる)")]
     public int shardCount = 28;
     [Tooltip("感情の塵の数(種類は6種からランダム。食べると一時的に能力強化。地中にたくさん散らばる)")]
-    public int dustCount = 60;
+    public int dustCount = 100;
+    [Tooltip("塵の種類ごとの出やすさ(1=基準)。順番は 喜 / 怒 / 哀 / 楽。怒は岩盤を掘るために必要なので、少し多め")]
+    public float[] dustTypeWeights = { 1f, 1.8f, 1f, 1f };
     [Tooltip("各種類の1個目を、モグラの近く(3〜6ユニット)に置く。動作確認用")]
     public bool placeOneNearStart = true;
     public int seed = 777;
@@ -80,19 +82,52 @@ void Start()
         Spawn(Kind.Obstacle, obstacleCount, rng, placed);
     }
 
-void Spawn(Kind kind, int count, System.Random rng, List<Vector2> placed)
+/// <summary>感情の塵を、すべて消して、もう一度ランダムに散らす(クエストを受けるたびに呼ぶ)。</summary>
+    public void RespawnDust()
+    {
+        if (terrain == null || mole == null) return;
+
+        var placed = new List<Vector2>();
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            var child = transform.GetChild(i);
+            var pick = child.GetComponent<ItemPickup>();
+            if (pick != null && pick.kind == ItemKind.Dust) { Destroy(child.gameObject); continue; }
+            placed.Add(child.position);
+        }
+
+        var rng = new System.Random(System.Environment.TickCount);
+        Spawn(Kind.Dust, dustCount, rng, placed, true);
+    }
+
+    void Spawn(Kind kind, int count, System.Random rng, List<Vector2> placed, bool noNear = false)
     {
         // 食料は深いほど少なく、感情のかけらは深いほど多い
         AnimationCurve curve = kind == Kind.Heal ? healDensityByDepth : (kind == Kind.Shard ? shardDensityByDepth : (kind == Kind.Dust ? dustDensityByDepth : null));
 
         for (int i = 0; i < count; i++)
         {
-            bool near = placeOneNearStart && (kind == Kind.Dust ? i < 3 : i == 0);
+            bool near = !noNear && placeOneNearStart && (kind == Kind.Dust ? i < 3 : i == 0);
             if (!FindSpot(rng, near, placed, curve, out Vector2 p)) continue;
             placed.Add(p);
-            int emotion = (kind == Kind.Shard || kind == Kind.Dust) ? rng.Next(EmotionInfo.Count) : 0; // 地層に関係なくランダム
+            int emotion = kind == Kind.Dust ? PickDustType(rng) : (kind == Kind.Shard ? rng.Next(EmotionInfo.Count) : 0); // 地層に関係なくランダム
             Create(kind, p, emotion);
         }
+    }
+
+// 塵の種類を、重み(dustTypeWeights)つきでランダムに選ぶ
+    int PickDustType(System.Random rng)
+    {
+        float total = 0f;
+        for (int i = 0; i < EmotionInfo.Count; i++) total += (dustTypeWeights != null && i < dustTypeWeights.Length) ? Mathf.Max(0f, dustTypeWeights[i]) : 1f;
+        if (total <= 0f) return rng.Next(EmotionInfo.Count);
+        float r = (float)rng.NextDouble() * total;
+        for (int i = 0; i < EmotionInfo.Count; i++)
+        {
+            r -= (dustTypeWeights != null && i < dustTypeWeights.Length) ? Mathf.Max(0f, dustTypeWeights[i]) : 1f;
+            if (r <= 0f) return i;
+        }
+        return EmotionInfo.Count - 1;
     }
 
 bool FindSpot(System.Random rng, bool near, List<Vector2> placed, AnimationCurve density, out Vector2 pos)

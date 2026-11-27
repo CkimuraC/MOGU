@@ -117,6 +117,8 @@ void OnGUI()
             GUILayout.Space(UiText.Px(10));
             DrawDust();
             GUILayout.Space(UiText.Px(10));
+            DrawQuest();
+            GUILayout.Space(UiText.Px(10));
             DrawDisplay();
             // ★ここに足す: DrawTeleport(); DrawShards(); など
             GUILayout.EndScrollView();
@@ -294,7 +296,25 @@ void DrawDarkness()
         GUILayout.Label("R3(パッド): 押すたびに「引く / 戻す」を切り替え  (いま: " + (camFollow.ZoomToggled ? "引いている" : "ふだん") + ")", GUILayout.Height(RowH));
     }
 
-// ---------------- 感情の塵 ----------------
+// ---------------- クエスト ----------------
+    void DrawQuest()
+    {
+        GUILayout.Label("―― クエスト ――", GUILayout.Height(RowH));
+        var q = QuestManager.Instance;
+        if (q == null) { GUILayout.Label("(QuestManager が見つかりません)", GUILayout.Height(RowH)); return; }
+
+        string st = q.AllDone ? "すべて達成済み" : (q.CurrentTitle + "  " + (!q.Accepted ? "(未受注)" : (q.CanReport ? "(達成! 報告できる)" : "(挑戦中)")));
+        GUILayout.Label("達成済み: " + q.CompletedCount + " / " + q.quests.Count + "   " + st, GUILayout.Height(RowH));
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("必要なかけらをもらう", GUILayout.Height(RowH))) q.DebugGiveNeeded();
+        if (GUILayout.Button("このクエストを飛ばす", GUILayout.Height(RowH))) q.DebugSkip();
+        GUILayout.EndHorizontal();
+        if (GUILayout.Button("クエストの進行を最初からやり直す", GUILayout.Height(RowH))) q.DebugResetProgress();
+        GUILayout.Label("進行は保存されます(PlayerPrefs)。大木で B / × → 受ける・報告", GUILayout.Height(RowH));
+    }
+
+    // ---------------- 感情の塵 ----------------
     EmotionDust dustComp;
 void DrawDust()
     {

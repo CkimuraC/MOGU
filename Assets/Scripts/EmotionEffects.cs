@@ -46,7 +46,7 @@ public class EmotionEffects : MonoBehaviour
         return new List<EmotionEffectDef>
         {
             new EmotionEffectDef { type = EmotionType.Joy,     duration = 30f, regenBonusPerSecond = 6f },
-            new EmotionEffectDef { type = EmotionType.Anger,   duration = 25f, digSpeedMul = 1.3f, staminaCostMul = 1.6f, digPowerBonus = 1f },
+            new EmotionEffectDef { type = EmotionType.Anger,   duration = 40f, digSpeedMul = 1.3f, staminaCostMul = 1.6f, digPowerBonus = 1f },
             new EmotionEffectDef { type = EmotionType.Sadness, duration = 30f, moveSpeedMul = 0.7f, staminaCostMul = 0.5f },
             new EmotionEffectDef { type = EmotionType.Fun,     duration = 25f, moveSpeedMul = 1.3f, digSpeedMul = 1.4f }
         };

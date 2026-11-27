@@ -39,7 +39,7 @@ public class DirtTerrain : MonoBehaviour
         new SoilLayer("粘土層",    6f,  new Color32(158, 92, 54, 255),  new Color32(128, 72, 44, 255), 1.4f, 1.0f),
         new SoilLayer("砂利層",  12f, new Color32(132, 108, 84, 255), new Color32(104, 84, 66, 255), 1.9f, 3.0f),
         new SoilLayer("硬い層",    18f, new Color32(96, 82, 74, 255),   new Color32(72, 62, 58, 255),  2.6f, 2.0f),
-        new SoilLayer("岩盤", 25f, new Color32(74, 76, 90, 255),   new Color32(48, 50, 64, 255),  3.5f, 2.5f) { minDigPower = 1.5f }
+        new SoilLayer("岩盤", 25f, new Color32(74, 76, 90, 255),   new Color32(48, 50, 64, 255),  2.8f, 2.5f) { minDigPower = 1.5f }
     };
     [Tooltip("層の境目の波打ち(ユニット)。0でまっすぐ")]
     public float layerWobble = 0.35f;

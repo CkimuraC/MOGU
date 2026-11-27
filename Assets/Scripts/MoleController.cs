@@ -101,6 +101,10 @@ public class MoleController : MonoBehaviour
     public Sprite sprite;
     public float visualScale = 1f;
 
+    [Header("Underpowered Digging (掘削力が足りない層)")]
+    [Tooltip("掘削力が足りない層(岩盤など)でも、この倍率の速さで、ゆっくり掘れる。「怒」などで掘削力が足りれば、普通に掘れる。0以下なら、掘れない")]
+    public float underpoweredDigMul = 0.3f;
+
     public float Stamina { get; private set; }
     public bool Exhausted { get; private set; }
 
@@ -176,6 +180,7 @@ public class MoleController : MonoBehaviour
     /// <summary>掘削力。基本は1、「怒り」で+1。地層の Min Dig Power 以上でないと掘れない。</summary>
     public float DigPower { get { return 1f + (Fx != null ? Fx.DigPowerBonus : 0f); } }
     /// <summary>硬すぎて掘れなかった時刻(画面の通知用)</summary>
+    public float SlowDigUntil { get; private set; }  // 掘削力が足りない層を、ゆっくり掘っている間
     public float HardBlockedUntil { get; private set; } // 1回の判定で進む最大距離(px)。フレーム落ち時のすり抜け防止
 
     Transform visual;
@@ -376,15 +381,17 @@ Vector2 Step(Vector2 pos, Vector2 dir, float dt, bool digHeld, ref bool dugThisF
             // 掘り進む先(ブラシの先端)の層
             Vector2 front = pos + dir * (BrushRadiusPx / terrain.pixelsPerUnit);
 
-            if (terrain.MinDigPowerAt(front) > DigPower + 0.001f)
+            bool underpowered = terrain.MinDigPowerAt(front) > DigPower + 0.001f;
+            if (underpowered && underpoweredDigMul <= 0f)
             {
                 // 掘削力が足りず、硬すぎて掘れない
                 HardBlockedUntil = Time.time + 0.3f;
             }
             else
             {
+                if (underpowered) SlowDigUntil = Time.time + 0.3f;
                 float hard = terrain.HardnessAt(front);
-                float speedMul = DigMul / Mathf.Lerp(1f, hard, hardnessSpeedInfluence) * TiredDigMul; // 疲れているほど、ゆっくり掘る
+                float speedMul = DigMul / Mathf.Lerp(1f, hard, hardnessSpeedInfluence) * TiredDigMul * (underpowered ? underpoweredDigMul : 1f); // 疲れているほど、ゆっくり掘る
                 float costMul = Mathf.Lerp(1f, hard, hardnessStaminaInfluence) * CostMul;
 
                 Vector2 target = pos + dir * digSpeed * speedMul * dt;

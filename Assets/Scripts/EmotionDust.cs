@@ -24,6 +24,8 @@ public class EmotionDust : MonoBehaviour
     public float maxGauge = 100f;
     [Tooltip("塵1つで増えるゲージ量(その感情のゲージが増える)")]
     public float absorbAmount = 20f;
+    [Tooltip("感情ごとの増えやすさの倍率(1=基準)。順番は 喜 / 怒 / 哀 / 楽。怒は岩盤を掘るために必要なので、少し多め")]
+    public float[] absorbMultipliers = { 1f, 1.5f, 1f, 1f };
 
     [Header("発動チャンス")]
     [Tooltip("ゲージが最大になってから、発動できる時間(秒)")]
@@ -75,7 +77,8 @@ public class EmotionDust : MonoBehaviour
     public void Absorb(EmotionType t, float amount = -1f)
     {
         int i = (int)t;
-        gauges[i] = Mathf.Min(maxGauge, gauges[i] + (amount < 0f ? absorbAmount : amount));
+        float mul = absorbMultipliers != null && i < absorbMultipliers.Length ? absorbMultipliers[i] : 1f;
+        gauges[i] = Mathf.Min(maxGauge, gauges[i] + (amount < 0f ? absorbAmount * mul : amount));
         Toast(EmotionInfo.NameJp(t) + "の塵を吸収した", 1.0f);
         if (gauges[i] >= maxGauge && states[i] != State.Ready) EnterReady(i, true);
     }

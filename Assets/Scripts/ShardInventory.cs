@@ -14,7 +14,7 @@ public class ShardInventory : MonoBehaviour
     public int selected;
 
     [Tooltip("地上に出たとき、持っているかけらを自動で納める")]
-    public bool autoDeliverOnSurface = true;
+    public bool autoDeliverOnSurface = false;
 
     // 感情のかけらは「大木に届けるもの」。能力強化は感情の塵(EmotionDust)が担当。
 
