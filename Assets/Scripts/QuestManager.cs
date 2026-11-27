@@ -115,11 +115,8 @@ public class QuestManager : MonoBehaviour
         Accepted = true;
         announced = false;
 
-        // クエストを受けるたびに、感情の塵が、もう一度ランダムに復活する
-        var spawner = FindFirstObjectByType<ItemSpawner>();
-        if (spawner != null) spawner.RespawnDust();
-
-        Toast("クエストを受けた: " + CurrentTitle + "  (感情の塵が、地中にまた湧いた)", 3.5f);
+        // (感情の塵は、クエストとは関係なく、ItemSpawner が常にランダム生成する)
+        Toast("クエストを受けた: " + CurrentTitle, 3f);
     }
 
     /// <summary>クエストを諦める(集めたかけらは、持ったまま)。</summary>
@@ -183,7 +180,7 @@ public class QuestManager : MonoBehaviour
         if (ok && !announced)
         {
             announced = true;
-            Toast("クエスト達成!  いつでも帰還して、大木に報告できます", 4f);
+            Toast("クエスト達成!  帰還して、大木に報告できます(探索を続けてもOK)", 4f);
         }
         else if (!ok) announced = false;
     }

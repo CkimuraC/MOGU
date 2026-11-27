@@ -339,6 +339,21 @@ void DrawDust()
         }
         if (GUILayout.Button("ゲージをすべて空にする", GUILayout.Height(RowH))) dustComp.ClearAll();
         GUILayout.Label("満タンのあと E / ○ で感情を選んで発動", GUILayout.Height(RowH));
+
+        // 塵の常時生成(上限つき)
+        var sp = FindFirstObjectByType<ItemSpawner>();
+        if (sp != null)
+        {
+            sp.dustRespawnEnabled = Toggle("塵を常にランダム生成する", sp.dustRespawnEnabled);
+            sp.dustCount = Mathf.RoundToInt(Slider("塵の上限数", sp.dustCount, 10f, 200f, "0"));
+            sp.dustRespawnInterval = Slider("生成間隔(秒)", sp.dustRespawnInterval, 0.5f, 20f, "0.0");
+            sp.dustRespawnMinDistance = Slider("モグラからの最低距離", sp.dustRespawnMinDistance, 3f, 20f, "0.0");
+            GUILayout.Label("―― 回復アイテム(●★)の常時生成 ――", GUILayout.Height(RowH));
+            sp.itemRespawnEnabled = Toggle("●★を常にランダム生成する", sp.itemRespawnEnabled);
+            sp.healCount = Mathf.RoundToInt(Slider("●(スタミナ回復)の上限数", sp.healCount, 0f, 60f, "0"));
+            sp.starCount = Mathf.RoundToInt(Slider("★(最大スタミナ増加)の上限数", sp.starCount, 0f, 30f, "0"));
+            sp.itemRespawnInterval = Slider("●★の生成間隔(秒)", sp.itemRespawnInterval, 0.5f, 30f, "0.0");
+        }
     }
 
     // ---------------- 大木 ----------------

@@ -22,10 +22,20 @@ public class ItemSpawner : MonoBehaviour
     public int shardCount = 28;
     [Tooltip("感情の塵の数(種類は6種からランダム。食べると一時的に能力強化。地中にたくさん散らばる)")]
     public int dustCount = 100;
+    [Tooltip("塵を、プレイ中も常にランダムに生成する。上限は Dust Count(これを超えない)")]
+    public bool dustRespawnEnabled = true;
+    [Tooltip("塵が上限より少ないとき、何秒ごとに1つ生成するか")]
+    public float dustRespawnInterval = 3f;
+    [Tooltip("モグラからこの距離(ユニット)より近くでは、生成しない")]
+    public float dustRespawnMinDistance = 7f;
     [Tooltip("塵の種類ごとの出やすさ(1=基準)。順番は 喜 / 怒 / 哀 / 楽。怒は岩盤を掘るために必要なので、少し多め")]
     public float[] dustTypeWeights = { 1f, 1.8f, 1f, 1f };
     [Tooltip("各種類の1個目を、モグラの近く(3〜6ユニット)に置く。動作確認用")]
     public bool placeOneNearStart = true;
+    [Tooltip("スタミナ回復(●)と最大スタミナ増加(★)も、プレイ中に常にランダム生成する。上限は Heal Count / Star Count")]
+    public bool itemRespawnEnabled = true;
+    [Tooltip("●★が上限より少ないとき、何秒ごとに1つ生成するか")]
+    public float itemRespawnInterval = 4f;
     public int seed = 777;
 
     [Header("Placement")]
@@ -82,7 +92,89 @@ void Start()
         Spawn(Kind.Obstacle, obstacleCount, rng, placed);
     }
 
-/// <summary>感情の塵を、すべて消して、もう一度ランダムに散らす(クエストを受けるたびに呼ぶ)。</summary>
+// ---- 塵の常時生成(上限つき) ----
+    float dustTimer;
+    float itemTimer;
+    System.Random liveRng;
+
+void Update()
+    {
+        if (terrain == null || mole == null) return;
+
+        if (dustRespawnEnabled)
+        {
+            dustTimer += Time.deltaTime;
+            if (dustTimer >= Mathf.Max(0.2f, dustRespawnInterval))
+            {
+                dustTimer = 0f;
+                if (CountKind(ItemKind.Dust) < dustCount) TrySpawnOne(Kind.Dust);
+            }
+        }
+
+        if (itemRespawnEnabled)
+        {
+            itemTimer += Time.deltaTime;
+            if (itemTimer >= Mathf.Max(0.2f, itemRespawnInterval))
+            {
+                itemTimer = 0f;
+                bool needHeal = CountKind(ItemKind.Heal) < healCount;
+                bool needStar = CountKind(ItemKind.Star) < starCount;
+                if (needHeal && needStar) { if (Random.value < 0.7f) TrySpawnOne(Kind.Heal); else TrySpawnOne(Kind.Star); }
+                else if (needHeal) TrySpawnOne(Kind.Heal);
+                else if (needStar) TrySpawnOne(Kind.Star);
+            }
+        }
+    }
+
+int CountKind(ItemKind k)
+    {
+        int n = 0;
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            var p = transform.GetChild(i).GetComponent<ItemPickup>();
+            if (p != null && p.kind == k) n++;
+        }
+        return n;
+    }
+
+    // 土の中(掘っていないところ)・モグラから遠い・画面に写っていない場所に、1つ生成する
+void TrySpawnOne(Kind kind)
+    {
+        if (liveRng == null) liveRng = new System.Random(System.Environment.TickCount);
+        Rect r = terrain.WorldRect;
+        Vector2 origin = mole.transform.position;
+        var cam = Camera.main;
+        AnimationCurve curve = kind == Kind.Heal ? healDensityByDepth : (kind == Kind.Dust ? dustDensityByDepth : null);
+
+        for (int t = 0; t < 40; t++)
+        {
+            var p = new Vector2(
+                Mathf.Lerp(r.xMin + edgeMargin, r.xMax - edgeMargin, (float)liveRng.NextDouble()),
+                Mathf.Lerp(r.yMin + edgeMargin, r.yMax - edgeMargin, (float)liveRng.NextDouble()));
+
+            float depth01 = Mathf.Clamp01((terrain.TopY - p.y) / terrain.WorldSize.y);
+            if (curve != null && (float)liveRng.NextDouble() > curve.Evaluate(depth01)) continue;
+            if (p.y > terrain.TopY - 0.5f) continue;
+            if ((p - origin).magnitude < dustRespawnMinDistance) continue;
+            if (!terrain.IsSolid(p)) continue;
+
+            if (cam != null)
+            {
+                var vp = cam.WorldToViewportPoint(p);
+                if (vp.x > -0.1f && vp.x < 1.1f && vp.y > -0.1f && vp.y < 1.1f) continue;
+            }
+
+            bool ok = true;
+            for (int i = 0; i < transform.childCount; i++)
+                if (((Vector2)transform.GetChild(i).position - p).magnitude < minSpacing) { ok = false; break; }
+            if (!ok) continue;
+
+            Create(kind, p, kind == Kind.Dust ? PickDustType(liveRng) : 0);
+            return;
+        }
+    }
+
+    /// <summary>感情の塵を、すべて消して、もう一度ランダムに散らす(クエストを受けるたびに呼ぶ)。</summary>
     public void RespawnDust()
     {
         if (terrain == null || mole == null) return;

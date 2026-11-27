@@ -71,7 +71,7 @@ public class QuestHud : MonoBehaviour
         }
         else
         {
-            UiText.Label(new Rect(x, y, w, lh), "いつでも帰還できます(達成前は、諦める扱い)", 15, gray);
+            UiText.Label(new Rect(x, y, w, lh), "帰還すると、クエストを諦めたことになります", 15, gray);
         }
         }
 }

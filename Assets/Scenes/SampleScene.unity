@@ -720,12 +720,17 @@ MonoBehaviour:
   obstacleCount: 14
   shardCount: 28
   dustCount: 100
+  dustRespawnEnabled: 1
+  dustRespawnInterval: 3
+  dustRespawnMinDistance: 7
   dustTypeWeights:
   - 1
   - 1.8
   - 1
   - 1
   placeOneNearStart: 1
+  itemRespawnEnabled: 1
+  itemRespawnInterval: 4
   seed: 777
   minDistanceFromMole: 4
   minSpacing: 2.2

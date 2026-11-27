@@ -176,7 +176,7 @@ void ShowTreeMenu()
         for (int i = 0; i < EmotionInfo.Count; i++)
             p.lines.Add("　 感情のかけら(" + EmotionInfo.NameJp((EmotionType)i) + ") ×" + q.Need((EmotionType)i));
         p.lines.Add("報酬: " + cur.rewardText);
-        p.lines.Add("★ 必要数がそろったら、いつでも帰還できます。達成前に帰還すると、諦めたことになります。");
+        p.lines.Add("★ 必要数がそろうと、帰還して報告できます。達成前に帰還すると、クエストを諦めたことになります。");
         p.choices.Add(C("受ける", () => { q.Accept(); Close(); }));
         p.choices.Add(C("もどる", ShowTreeMenu));
         p.onCancel = ShowTreeMenu;
@@ -343,7 +343,7 @@ string NotReadyText()
         p.lines.Add("いまの場所に拠点を作るか、初期位置へ帰還できます。");
         p.lines.Add("拠点: " + mgr.Count + " / " + mgr.maxBases);
         p.choices.Add(C("拠点を作成する", ShowConfirmBuild, true, "休息とセーブができる空洞を作る"));
-        p.choices.Add(C("帰還する", () => ShowConfirmReturn(ShowMain), true, "初期位置に戻る"));
+        p.choices.Add(C(ReturnLabel(), () => ShowConfirmReturn(ShowMain), true, ReturnNote()));
         Show(p);
     }
 
@@ -429,7 +429,23 @@ string NotReadyText()
         Show(p);
     }
 
-void ShowConfirmReturn(Action back)
+// 帰還 = クエストを諦める(達成前)。達成済みなら、報告に戻る帰還。
+    bool ReturnGivesUp()
+    {
+        var q = QuestManager.Instance;
+        return q != null && q.Accepted && !q.CanReport;
+    }
+
+    string ReturnLabel() { return ReturnGivesUp() ? "帰還する(クエストを諦める)" : "帰還する"; }
+
+    string ReturnNote()
+    {
+        if (ReturnGivesUp()) return "達成前に帰還すると、クエストを諦めたことになります";
+        var q = QuestManager.Instance;
+        return q != null && q.CanReport ? "大木に報告できます" : "初期位置に戻る";
+    }
+
+    void ShowConfirmReturn(Action back)
     {
         var q = QuestManager.Instance;
         var p = new Page { title = "帰還しますか?" };
@@ -476,7 +492,7 @@ void ShowConfirmReturn(Action back)
         }, true, "拠点の位置を保存する"));
         p.choices.Add(C("他の拠点へワープする", () => ShowWarp(site), mgr.Count >= 2,
             mgr.Count >= 2 ? "ほかの拠点へ移動する" : "他の拠点がありません"));
-        p.choices.Add(C("帰還する", () => ShowConfirmReturn(() => ShowBaseMain(site)), true, "初期位置に戻る"));
+        p.choices.Add(C(ReturnLabel(), () => ShowConfirmReturn(() => ShowBaseMain(site)), true, ReturnNote()));
         Show(p);
     }
 
