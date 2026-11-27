@@ -88,9 +88,14 @@ public class BaseMenu : MonoBehaviour
     // ---------------- 開く・閉じる・選ぶ ----------------
 
     /// <summary>モグラの居場所に合わせた、最初の画面を開く。</summary>
-    public void OpenMenu()
+public void OpenMenu()
     {
         if (mgr == null || mole == null) return;
+
+        // 地上で、大木の近くにいるときは、大木に話しかける(クエスト)
+        var tree = GiantTree.Instance;
+        if (tree != null && tree.IsMoleNear(mole.transform.position)) { ShowTreeMenu(); return; }
+
         var at = mgr.NearestBaseWithin(mole.transform.position, mgr.interactRadius);
         if (at != null) ShowBaseMain(at); else ShowMain();
     }
@@ -103,6 +108,28 @@ public class BaseMenu : MonoBehaviour
         if (inv == null) return;
         ShowShardSelect();
     }
+
+// ---------------- 大木(クエストの入口。中身は、これから決める) ----------------
+    void ShowTreeMenu()
+    {
+        var p = new Page { title = "大木" };
+        p.lines.Add("地上にそびえる、大きな木。ここから、クエストを受けられるようになる予定です。");
+        p.choices.Add(C("クエストを受ける", ShowQuestList, true, "準備中"));
+        p.choices.Add(C("はなれる", Close));
+        p.onCancel = Close;
+        Show(p);
+    }
+
+    void ShowQuestList()
+    {
+        var p = new Page { title = "クエスト" };
+        p.lines.Add("いまは、受けられるクエストがありません。");
+        p.lines.Add("(準備中: クエストの内容は、これから決めます)");
+        p.choices.Add(C("もどる", ShowTreeMenu));
+        p.onCancel = ShowTreeMenu;
+        Show(p);
+    }
+
 
     /// <summary>効果の説明 + 効く時間 + (すでに効いていれば)その旨。</summary>
     string EffectNote(EmotionType t)

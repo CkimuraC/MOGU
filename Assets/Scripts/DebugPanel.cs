@@ -111,6 +111,8 @@ void OnGUI()
             GUILayout.Space(UiText.Px(10));
             DrawCamera();
             GUILayout.Space(UiText.Px(10));
+            DrawTree();
+            GUILayout.Space(UiText.Px(10));
             DrawDisplay();
             // ★ここに足す: DrawTeleport(); DrawShards(); など
             GUILayout.EndScrollView();
@@ -287,6 +289,25 @@ void DrawDarkness()
         GUILayout.Label("Zキー: 押している間だけ引く", GUILayout.Height(RowH));
         GUILayout.Label("R3(パッド): 押すたびに「引く / 戻す」を切り替え  (いま: " + (camFollow.ZoomToggled ? "引いている" : "ふだん") + ")", GUILayout.Height(RowH));
     }
+
+// ---------------- 大木 ----------------
+    void DrawTree()
+    {
+        GUILayout.Label("―― 大木(クエスト) ――", GUILayout.Height(RowH));
+        var t = GiantTree.Instance;
+        if (t == null) { GUILayout.Label("(GiantTree が見つかりません)", GUILayout.Height(RowH)); return; }
+
+        t.visible = Toggle("大木を表示する", t.visible);
+        t.scale = Slider("大きさ(倍率)", t.scale, 0.3f, 10f, "0.00");
+        t.offsetX = Slider("左右の位置(中央から)", t.offsetX, -24f, 24f, "0.0");
+        t.offsetY = Slider("上下の位置(地面から)", t.offsetY, -3f, 3f, "0.00");
+        t.interactRadius = Slider("話しかけられる距離", t.interactRadius, 1f, 10f, "0.0");
+        t.flipX = Toggle("左右を反転", t.flipX);
+        t.seed = Mathf.RoundToInt(Slider("葉の形(乱数の種)", t.seed, 0f, 9999f, "0"));
+        GUILayout.Label("いまの大きさ: 幅 " + t.WidthUnits.ToString("0.0") + " × 高さ " + t.HeightUnits.ToString("0.0") + " ユニット", GUILayout.Height(RowH));
+        GUILayout.Label("地上で大木の近くにいて B / × を押すと、話しかけられます", GUILayout.Height(RowH));
+    }
+
 
 
 
