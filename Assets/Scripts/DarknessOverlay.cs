@@ -19,9 +19,9 @@ public class DarknessOverlay : MonoBehaviour
 
     [Header("Mole Light (モグラの周囲)")]
     [Tooltip("この半径までは完全に見える(ユニット)")]
-    public float lightInnerRadius = 1.0f;
+    public float lightInnerRadius = 0.6f;
     [Tooltip("この半径で真っ暗になる(ユニット)。画面の高さは約12ユニット")]
-    public float lightOuterRadius = 3.0f;
+    public float lightOuterRadius = 3.8f;
 
     [Header("Scan Light (スキャンで照らされる範囲)")]
     [Tooltip("照らされた範囲の縁のぼかし幅(ユニット)")]
@@ -39,9 +39,9 @@ public class DarknessOverlay : MonoBehaviour
 
     [Header("Surface Light (地表からの光)")]
     [Tooltip("土の上端からこの深さまでは完全に明るい(ユニット)")]
-    public float surfaceLightFull = 0.3f;
+    public float surfaceLightFull = 0.0f;
     [Tooltip("土の上端からこの深さで真っ暗になる(ユニット)。0で無効")]
-    public float surfaceLightDepth = 2.5f;
+    public float surfaceLightDepth = 3.5f;
 
     float topY;
     public int sortingOrder = 8; // 地形(0)・アイテム(5)の上、モグラ(10)の下

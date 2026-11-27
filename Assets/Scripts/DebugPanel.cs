@@ -113,6 +113,8 @@ void OnGUI()
             GUILayout.Space(UiText.Px(10));
             DrawTree();
             GUILayout.Space(UiText.Px(10));
+            DrawBody();
+            GUILayout.Space(UiText.Px(10));
             DrawDisplay();
             // ★ここに足す: DrawTeleport(); DrawShards(); など
             GUILayout.EndScrollView();
@@ -307,6 +309,29 @@ void DrawDarkness()
         GUILayout.Label("いまの大きさ: 幅 " + t.WidthUnits.ToString("0.0") + " × 高さ " + t.HeightUnits.ToString("0.0") + " ユニット", GUILayout.Height(RowH));
         GUILayout.Label("地上で大木の近くにいて B / × を押すと、話しかけられます", GUILayout.Height(RowH));
     }
+
+// ---------------- モグラの体(曲がる表現の試作) ----------------
+    void DrawBody()
+    {
+        GUILayout.Label("―― 通路の幅・モグラの大きさ ――", GUILayout.Height(RowH));
+        if (mole != null)
+        {
+            mole.tunnelWidthPx = Mathf.Round(Slider("通路の幅(画素)", mole.tunnelWidthPx, 8f, 40f, "0"));
+            mole.visualScale = Slider("モグラの絵の大きさ(倍)", mole.visualScale, 0.4f, 1.5f, "0.00");
+            GUILayout.Label("通路の幅は、絵の大きさとは別です。細くすると、同じ距離でも、スタミナの消費が減ります", GUILayout.Height(RowH));
+        }
+        GUILayout.Space(UiText.Px(6));
+        GUILayout.Label("―― モグラの体(曲がる表現) ――", GUILayout.Height(RowH));
+        var b = SegmentedMoleVisual.Instance;
+        if (b == null) { GUILayout.Label("(SegmentedMoleVisual が見つかりません)", GUILayout.Height(RowH)); return; }
+
+        b.bendEnabled = Toggle("体を曲げる(オフ=元の1枚絵)", b.bendEnabled);
+        b.segmentCount = Mathf.RoundToInt(Slider("体を切る数", b.segmentCount, 2f, 8f, "0"));
+        b.overlapPx = Mathf.RoundToInt(Slider("切れ目の重なり(画素)", b.overlapPx, 0f, 3f, "0"));
+        b.turnResponse = Slider("頭が向きを変える速さ", b.turnResponse, 2f, 40f, "0");
+        b.tangentSpan = Slider("曲がり方のゆるやかさ", b.tangentSpan, 0.05f, 0.8f, "0.00");
+    }
+
 
 
 
