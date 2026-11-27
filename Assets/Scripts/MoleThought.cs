@@ -12,15 +12,13 @@ using UnityEngine;
 public class MoleThought : MonoBehaviour
 {
     [Header("Texts (食べた感情 → モグラの思考)")]
-    [Tooltip("順番は 喜び / 怒り / 悲しみ / 恐れ / 安心 / 好奇心")]
+    [Tooltip("順番は 喜 / 怒 / 哀 / 楽")]
     public string[] emotionTexts =
     {
-        "♪",
+        "ふふっ♪",
         "むむむ…！",
         "……",
-        "なにかいる…？",
-        "ふぅ…",
-        "なんだろう？"
+        "わーい！"
     };
 
     [Header("Display")]

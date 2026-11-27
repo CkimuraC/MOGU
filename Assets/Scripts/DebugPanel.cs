@@ -115,6 +115,8 @@ void OnGUI()
             GUILayout.Space(UiText.Px(10));
             DrawBody();
             GUILayout.Space(UiText.Px(10));
+            DrawDust();
+            GUILayout.Space(UiText.Px(10));
             DrawDisplay();
             // ★ここに足す: DrawTeleport(); DrawShards(); など
             GUILayout.EndScrollView();
@@ -292,7 +294,34 @@ void DrawDarkness()
         GUILayout.Label("R3(パッド): 押すたびに「引く / 戻す」を切り替え  (いま: " + (camFollow.ZoomToggled ? "引いている" : "ふだん") + ")", GUILayout.Height(RowH));
     }
 
-// ---------------- 大木 ----------------
+// ---------------- 感情の塵 ----------------
+    EmotionDust dustComp;
+void DrawDust()
+    {
+        GUILayout.Label("―― 感情の塵(感情ごとのゲージ) ――", GUILayout.Height(RowH));
+        if (dustComp == null) dustComp = FindFirstObjectByType<EmotionDust>();
+        if (dustComp == null) { GUILayout.Label("(EmotionDust が見つかりません)", GUILayout.Height(RowH)); return; }
+
+        dustComp.absorbAmount = Mathf.Round(Slider("塵１つで増えるゲージ量(満タン=" + Mathf.RoundToInt(dustComp.maxGauge) + ")", dustComp.absorbAmount, 1f, 50f, "0"));
+        dustComp.readySeconds = Mathf.Round(Slider("発動チャンスの長さ(秒)", dustComp.readySeconds, 2f, 60f, "0"));
+        dustComp.decayPerSecond = Slider("チャンス終了後、ゲージが減る速さ(毎秒)", dustComp.decayPerSecond, 0.5f, 30f, "0.0");
+
+        for (int i = 0; i < EmotionInfo.Count; i++)
+        {
+            var t = (EmotionType)i;
+            var s = dustComp.StateOf(t);
+            string st = s == EmotionDust.State.Ready ? "チャンス中(あと " + Mathf.CeilToInt(dustComp.ReadyRemaining(t)) + " 秒)" : (s == EmotionDust.State.Fading ? "減少中" : "蓄積中");
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(EmotionInfo.NameJp(t) + "  " + Mathf.RoundToInt(dustComp.Gauge(t)) + "  " + st, GUILayout.Height(RowH));
+            if (GUILayout.Button("塵+1", GUILayout.Height(RowH))) dustComp.Absorb(t);
+            if (GUILayout.Button("満タン", GUILayout.Height(RowH))) dustComp.FillNow(t);
+            GUILayout.EndHorizontal();
+        }
+        if (GUILayout.Button("ゲージをすべて空にする", GUILayout.Height(RowH))) dustComp.ClearAll();
+        GUILayout.Label("満タンのあと E / ○ で感情を選んで発動", GUILayout.Height(RowH));
+    }
+
+    // ---------------- 大木 ----------------
     void DrawTree()
     {
         GUILayout.Label("―― 大木(クエスト) ――", GUILayout.Height(RowH));

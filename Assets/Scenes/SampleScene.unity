@@ -194,7 +194,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a326ff9c94a62d847b13fed693017dd2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BaseMenu
-  confirmBeforeUse: 1
 --- !u!114 &357175279
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -720,6 +719,7 @@ MonoBehaviour:
   starCount: 5
   obstacleCount: 14
   shardCount: 28
+  dustCount: 60
   placeOneNearStart: 1
   seed: 777
   minDistanceFromMole: 4
@@ -773,9 +773,36 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  dustDensityByDepth:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.6
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  dustSpriteOverrides:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
   shardSpriteOverrides:
-  - {fileID: 0}
-  - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
@@ -1048,6 +1075,7 @@ GameObject:
   - component: {fileID: 1890067548}
   - component: {fileID: 1890067550}
   - component: {fileID: 1890067551}
+  - component: {fileID: 1890067552}
   m_Layer: 0
   m_Name: Mole
   m_TagString: Untagged
@@ -1142,11 +1170,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: de1b7089f140260488adee529ef2d032, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ShardInventory
-  carried: 000000000000000000000000000000000000000000000000
-  delivered: 000000000000000000000000000000000000000000000000
+  carried: 00000000000000000000000000000000
+  delivered: 00000000000000000000000000000000
   selected: 0
   autoDeliverOnSurface: 1
-  autoEatOnPickup: 0
   startWithEach: 0
 --- !u!114 &1890067549
 MonoBehaviour:
@@ -1162,11 +1189,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EmotionEffects
   defs:
   - type: 0
-    duration: 25
-    moveSpeedMul: 1.3
-    digSpeedMul: 1.4
+    duration: 30
+    moveSpeedMul: 1
+    digSpeedMul: 1
     staminaCostMul: 1
-    regenBonusPerSecond: 0
+    regenBonusPerSecond: 6
     digPowerBonus: 0
     scanRangeMul: 1
     specialSenseMul: 1
@@ -1189,32 +1216,14 @@ MonoBehaviour:
     scanRangeMul: 1
     specialSenseMul: 1
   - type: 3
-    duration: 30
-    moveSpeedMul: 1
-    digSpeedMul: 1
-    staminaCostMul: 1
-    regenBonusPerSecond: 0
-    digPowerBonus: 0
-    scanRangeMul: 1.6
-    specialSenseMul: 1
-  - type: 4
-    duration: 30
-    moveSpeedMul: 1
-    digSpeedMul: 1
-    staminaCostMul: 1
-    regenBonusPerSecond: 6
-    digPowerBonus: 0
-    scanRangeMul: 1
-    specialSenseMul: 1
-  - type: 5
-    duration: 30
-    moveSpeedMul: 1
-    digSpeedMul: 1
+    duration: 25
+    moveSpeedMul: 1.3
+    digSpeedMul: 1.4
     staminaCostMul: 1
     regenBonusPerSecond: 0
     digPowerBonus: 0
     scanRangeMul: 1
-    specialSenseMul: 2
+    specialSenseMul: 1
 --- !u!114 &1890067550
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1228,12 +1237,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MoleThought
   emotionTexts:
-  - "\u266A"
+  - "\u3075\u3075\u3063\u266A"
   - "\u3080\u3080\u3080\u2026\uFF01"
   - "\u2026\u2026"
-  - "\u306A\u306B\u304B\u3044\u308B\u2026\uFF1F"
-  - "\u3075\u3045\u2026"
-  - "\u306A\u3093\u3060\u308D\u3046\uFF1F"
+  - "\u308F\u30FC\u3044\uFF01"
   displaySeconds: 2.5
   heightAbove: 0.55
   fontTexels: 7
@@ -1261,6 +1268,28 @@ MonoBehaviour:
   overlapPx: 1
   turnResponse: 14
   tangentSpan: 0.25
+--- !u!114 &1890067552
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1890067544}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f032dc4efc468be469b817ca5e7334e1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EmotionDust
+  maxGauge: 100
+  absorbAmount: 20
+  readySeconds: 10
+  decayPerSecond: 5
+  startGauge: 0
+  gauges:
+  - 0
+  - 0
+  - 0
+  - 0
 --- !u!1 &2032398986
 GameObject:
   m_ObjectHideFlags: 0

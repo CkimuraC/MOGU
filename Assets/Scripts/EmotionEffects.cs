@@ -38,20 +38,27 @@ public class EmotionEffectDef
 /// </summary>
 public class EmotionEffects : MonoBehaviour
 {
-    public List<EmotionEffectDef> defs = new List<EmotionEffectDef>
+    public List<EmotionEffectDef> defs = DefaultDefs();
+
+    /// <summary>喜怒哀楽の初期設定。喜=スタミナ回復 / 怒=硬い土を掘れる / 哀=ゆっくり・スタミナ節約 / 楽=速くなる</summary>
+    public static List<EmotionEffectDef> DefaultDefs()
     {
-        new EmotionEffectDef { type = EmotionType.Joy,       duration = 25f, moveSpeedMul = 1.3f, digSpeedMul = 1.4f },
-        new EmotionEffectDef { type = EmotionType.Anger,     duration = 25f, digSpeedMul = 1.3f, staminaCostMul = 1.6f, digPowerBonus = 1f },
-        new EmotionEffectDef { type = EmotionType.Sadness,   duration = 30f, moveSpeedMul = 0.7f, staminaCostMul = 0.5f },
-        new EmotionEffectDef { type = EmotionType.Fear,      duration = 30f, scanRangeMul = 1.6f },
-        new EmotionEffectDef { type = EmotionType.Calm,      duration = 30f, regenBonusPerSecond = 6f },
-        new EmotionEffectDef { type = EmotionType.Curiosity, duration = 30f, specialSenseMul = 2f }
-    };
+        return new List<EmotionEffectDef>
+        {
+            new EmotionEffectDef { type = EmotionType.Joy,     duration = 30f, regenBonusPerSecond = 6f },
+            new EmotionEffectDef { type = EmotionType.Anger,   duration = 25f, digSpeedMul = 1.3f, staminaCostMul = 1.6f, digPowerBonus = 1f },
+            new EmotionEffectDef { type = EmotionType.Sadness, duration = 30f, moveSpeedMul = 0.7f, staminaCostMul = 0.5f },
+            new EmotionEffectDef { type = EmotionType.Fun,     duration = 25f, moveSpeedMul = 1.3f, digSpeedMul = 1.4f }
+        };
+    }
+
+    public void ResetDefs() { defs = DefaultDefs(); }
 
     class ActiveEffect
     {
         public EmotionType type;
         public float remaining;
+        public bool held; // true: 塵のゲージが保っている間は、時間で消えない
     }
     readonly List<ActiveEffect> active = new List<ActiveEffect>();
 
@@ -83,10 +90,30 @@ public class EmotionEffects : MonoBehaviour
         active.Add(new ActiveEffect { type = t, remaining = d.duration });
     }
 
+    /// <summary>塵のゲージが保っている間だけ効かせる(on=true)/ 終わらせる(on=false)。時間では消えない。</summary>
+    public void Hold(EmotionType t, bool on)
+    {
+        for (int i = 0; i < active.Count; i++)
+        {
+            if (active[i].type != t) continue;
+            if (on) active[i].held = true;
+            else active.RemoveAt(i);
+            return;
+        }
+        if (on && Def(t) != null) active.Add(new ActiveEffect { type = t, remaining = 0f, held = true });
+    }
+
+    public bool IsHeld(EmotionType t)
+    {
+        for (int i = 0; i < active.Count; i++) if (active[i].type == t) return active[i].held;
+        return false;
+    }
+
     void Update()
     {
         for (int i = active.Count - 1; i >= 0; i--)
         {
+            if (active[i].held) continue;
             active[i].remaining -= Time.deltaTime;
             if (active[i].remaining <= 0f) active.RemoveAt(i);
         }

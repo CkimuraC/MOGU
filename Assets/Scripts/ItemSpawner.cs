@@ -8,7 +8,7 @@ using UnityEngine;
 /// </summary>
 public class ItemSpawner : MonoBehaviour
 {
-    enum Kind { Heal, Star, Obstacle, Shard }
+    enum Kind { Heal, Star, Obstacle, Shard, Dust }
 
     [Header("References (空なら自動検索)")]
     public DirtTerrain terrain;
@@ -20,6 +20,8 @@ public class ItemSpawner : MonoBehaviour
     public int obstacleCount = 14;
     [Tooltip("感情のかけらの数(種類は6種からランダム。地層とは無関係に散らばる)")]
     public int shardCount = 28;
+    [Tooltip("感情の塵の数(種類は6種からランダム。食べると一時的に能力強化。地中にたくさん散らばる)")]
+    public int dustCount = 60;
     [Tooltip("各種類の1個目を、モグラの近く(3〜6ユニット)に置く。動作確認用")]
     public bool placeOneNearStart = true;
     public int seed = 777;
@@ -34,7 +36,11 @@ public class ItemSpawner : MonoBehaviour
     public AnimationCurve healDensityByDepth = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.2f));
     [Tooltip("感情のかけらの出やすさ。深いほど多い")]
     public AnimationCurve shardDensityByDepth = new AnimationCurve(new Keyframe(0f, 0.15f), new Keyframe(1f, 1f));
-    [Tooltip("本番画像の差し替え用。順番は 喜び/怒り/悲しみ/恐れ/安心/好奇心。空なら仮画像")]
+    [Tooltip("感情の塵の出やすさ。深さに関係なく、ほぼ均等")]
+    public AnimationCurve dustDensityByDepth = new AnimationCurve(new Keyframe(0f, 0.6f), new Keyframe(1f, 1f));
+    [Tooltip("塵の本番画像の差し替え用。順番は 喜び/怒り/悲しみ/恐れ/安心/好奇心。空なら仮画像")]
+    public Sprite[] dustSpriteOverrides = new Sprite[EmotionInfo.Count];
+    [Tooltip("かけらの本番画像の差し替え用。順番は 喜び/怒り/悲しみ/恐れ/安心/好奇心。空なら仮画像")]
     public Sprite[] shardSpriteOverrides = new Sprite[EmotionInfo.Count];
 
     [Header("Effects")]
@@ -70,20 +76,21 @@ void Start()
         Spawn(Kind.Heal, healCount, rng, placed);
         Spawn(Kind.Star, starCount, rng, placed);
         Spawn(Kind.Shard, shardCount, rng, placed);
+        Spawn(Kind.Dust, dustCount, rng, placed);
         Spawn(Kind.Obstacle, obstacleCount, rng, placed);
     }
 
 void Spawn(Kind kind, int count, System.Random rng, List<Vector2> placed)
     {
         // 食料は深いほど少なく、感情のかけらは深いほど多い
-        AnimationCurve curve = kind == Kind.Heal ? healDensityByDepth : (kind == Kind.Shard ? shardDensityByDepth : null);
+        AnimationCurve curve = kind == Kind.Heal ? healDensityByDepth : (kind == Kind.Shard ? shardDensityByDepth : (kind == Kind.Dust ? dustDensityByDepth : null));
 
         for (int i = 0; i < count; i++)
         {
-            bool near = placeOneNearStart && i == 0;
+            bool near = placeOneNearStart && (kind == Kind.Dust ? i < 3 : i == 0);
             if (!FindSpot(rng, near, placed, curve, out Vector2 p)) continue;
             placed.Add(p);
-            int emotion = kind == Kind.Shard ? rng.Next(EmotionInfo.Count) : 0; // 地層に関係なくランダム
+            int emotion = (kind == Kind.Shard || kind == Kind.Dust) ? rng.Next(EmotionInfo.Count) : 0; // 地層に関係なくランダム
             Create(kind, p, emotion);
         }
     }
@@ -135,7 +142,7 @@ bool FindSpot(System.Random rng, bool near, List<Vector2> placed, AnimationCurve
 
 void Create(Kind kind, Vector2 p, int emotion)
     {
-        var go = new GameObject(kind == Kind.Shard ? "Shard_" + (EmotionType)emotion : kind.ToString());
+        var go = new GameObject(kind == Kind.Shard ? "Shard_" + (EmotionType)emotion : (kind == Kind.Dust ? "Dust_" + (EmotionType)emotion : kind.ToString()));
         go.transform.SetParent(transform, false);
         go.transform.position = p;
 
@@ -170,6 +177,18 @@ void Create(Kind kind, Vector2 p, int emotion)
                     sh.kind = ItemKind.Shard;
                     sh.emotion = et;
                     marker = EmotionInfo.ColorOf(et);
+                    break;
+                }
+            case Kind.Dust:
+                {
+                    var dt = (EmotionType)emotion;
+                    bool hasOv = dustSpriteOverrides != null && emotion < dustSpriteOverrides.Length && dustSpriteOverrides[emotion] != null;
+                    sr.sprite = hasOv ? dustSpriteOverrides[emotion] : DustSprites.Get(dt, terrain.pixelsPerUnit);
+                    var du = go.AddComponent<ItemPickup>();
+                    du.kind = ItemKind.Dust;
+                    du.emotion = dt;
+                    du.pickupRadius = 0.45f;
+                    marker = EmotionInfo.ColorOf(dt);
                     break;
                 }
             case Kind.Obstacle:

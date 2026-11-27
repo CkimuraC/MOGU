@@ -37,11 +37,7 @@ public class BaseMenu : MonoBehaviour
 
     public static bool IsOpen { get; private set; }
 
-    [Header("かけらを使う画面")]
-    [Tooltip("オン: かけらを選んだあと、「持ち帰る分もあるけど、どうしますか?」と確認する")]
-    public bool confirmBeforeUse = true;
-
-    ShardInventory inv;
+    EmotionDust dust;
     EmotionEffects fx;
 
     BaseManager mgr;
@@ -59,7 +55,7 @@ public class BaseMenu : MonoBehaviour
     {
         mgr = BaseManager.Instance != null ? BaseManager.Instance : FindFirstObjectByType<BaseManager>();
         mole = FindFirstObjectByType<MoleController>();
-        inv = FindFirstObjectByType<ShardInventory>();
+        dust = FindFirstObjectByType<EmotionDust>();
         fx = FindFirstObjectByType<EmotionEffects>();
     }
 
@@ -75,7 +71,7 @@ public class BaseMenu : MonoBehaviour
         if (page == null)
         {
             if (MoleInput.MenuOpenPressed()) OpenMenu();
-            else if (MoleInput.ShardMenuPressed()) OpenShardMenu(); // E / ○: かけらを使う
+            else if (MoleInput.ShardMenuPressed()) OpenEmotionMenu(); // E / ○: 塵のゲージが満タンのとき、感情を選んで発動
             return; // 開いたフレームでは、決定などを受け付けない
         }
 
@@ -101,12 +97,13 @@ public void OpenMenu()
     }
 
 /// <summary>「かけらを使う」画面を開く(Eキー / ○ボタン)。</summary>
-    public void OpenShardMenu()
+public void OpenEmotionMenu()
     {
-        if (inv == null) inv = FindFirstObjectByType<ShardInventory>();
+        if (dust == null) dust = FindFirstObjectByType<EmotionDust>();
         if (fx == null) fx = FindFirstObjectByType<EmotionEffects>();
-        if (inv == null) return;
-        ShowShardSelect();
+        if (dust == null) return;
+        if (!dust.AnyReady) { Toast(NotReadyText()); return; }
+        ShowEmotionSelect();
     }
 
 // ---------------- 大木(クエストの入口。中身は、これから決める) ----------------
@@ -145,61 +142,39 @@ public void OpenMenu()
     }
 
     /// <summary>どのかけらを使うか選ぶ画面。持ち帰る分にもなることを、補足で伝える。</summary>
-    void ShowShardSelect()
+void ShowEmotionSelect()
     {
-        var p = new Page { title = "かけらを使う" };
-        int total = inv.CarriedTotal;
-
-        if (total <= 0)
-        {
-            p.lines.Add("使えるかけらを、いまは持っていません。");
-            p.lines.Add("かけらを拾うと、ここから選んで使えます。");
-            p.choices.Add(C("もどる", Close));
-            p.onCancel = Close;
-            Show(p);
-            return;
-        }
-
-        p.lines.Add("使うかけらを選んでください。使うと、その感情の効果が、しばらくつきます。");
-        p.lines.Add("※ かけらは、地上へ持ち帰る分にもなります。使うと、持ち帰る分が減ります。(持っている数: 合計" + total + "個)");
+        var p = new Page { title = "感情を選んで発動" };
+        p.lines.Add("ゲージが満タンの感情を、発動できます。発動すると、その感情のゲージは空になります。");
 
         for (int i = 0; i < EmotionInfo.Count; i++)
         {
             var t = (EmotionType)i;
-            int n = inv.carried[i];
-            var ch = C(EmotionInfo.NameJp(t) + "   ×" + n, () => OnPickShard(t), n > 0, n > 0 ? EffectNote(t) : "持っていません");
+            bool ready = dust.IsReady(t);
+            string label = EmotionInfo.NameJp(t) + "   " + Mathf.RoundToInt(dust.Gauge(t)) + " / " + Mathf.RoundToInt(dust.maxGauge);
+            string note = ready
+                ? EffectNote(t) + "  (発動チャンス: あと " + Mathf.CeilToInt(dust.ReadyRemaining(t)) + " 秒)"
+                : "ゲージが、まだ満タンではありません";
+            var ch = C(label, () => UseEmotion(t), ready, note);
             ch.color = EmotionInfo.ColorOf(t);
             p.choices.Add(ch);
         }
-        p.choices.Add(C("使わない(すべて持ち帰る分にする)", Close));
+        p.choices.Add(C("あとで(いまは発動しない)", Close));
         p.onCancel = Close;
         Show(p);
     }
 
     /// <summary>かけらを選んだあと: 「持ち帰る分もあるけど、どうしますか?」と確認する。</summary>
-    void OnPickShard(EmotionType t)
+void UseEmotion(EmotionType t)
     {
-        if (!confirmBeforeUse) { UseShard(t); return; }
-
-        int n = inv.carried[(int)t];
-        var p = new Page { title = EmotionInfo.NameJp(t) + "のかけらを使いますか?" };
-        p.lines.Add("このかけらは、持ち帰る分にもなります。使うと、持ち帰る分が1つ減ります。(いま " + n + "個 → 使うと " + (n - 1) + "個)");
-        p.lines.Add("使うか、持ち帰る分にとっておくか、どうしますか?");
-        p.lines.Add("効果: " + EffectNote(t));
-
-        var use = C("使う", () => UseShard(t), true, "効果が、しばらくつきます");
-        use.color = EmotionInfo.ColorOf(t);
-        p.choices.Add(use);
-        p.choices.Add(C("使わずに、持ち帰る分にとっておく", ShowShardSelect));
-        p.onCancel = ShowShardSelect;
-        Show(p);
+        bool ok = dust != null && dust.Activate(t);
+        Close();
+        if (ok) Toast(EmotionInfo.NameJp(t) + "を発動!" + EffectNote(t));
     }
 
-    void UseShard(EmotionType t)
+string NotReadyText()
     {
-        bool ok = inv.TryEat(t);
-        Close();
-        if (ok) Toast(EmotionInfo.NameJp(t) + "のかけらを使いました。" + EffectNote(t));
+        return "感情の塵のゲージが、まだどれも満タンになっていません";
     }
 
 

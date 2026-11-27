@@ -3,7 +3,7 @@ using UnityEngine;
 /// <summary>
 /// 感情のかけらの持ち物。モグラに付ける。
 /// ・拾うと「持ち物」に入る
-/// ・食べると、その感情の効果が一時的につく(EmotionEffects)
+/// ・食べるものではない(能力強化は、感情の塵 EmotionDust が担当)
 /// ・地上に出ると、持っているかけらを自動で「納めた」ことになる(持ち帰り)
 /// </summary>
 public class ShardInventory : MonoBehaviour
@@ -16,8 +16,7 @@ public class ShardInventory : MonoBehaviour
     [Tooltip("地上に出たとき、持っているかけらを自動で納める")]
     public bool autoDeliverOnSurface = true;
 
-    [Tooltip("true: かけらに触れた瞬間に、その場で自動的に食べる(効果と吹き出しが出る。持ち物には入らない)。false: 持ち物に入り、キーで食べる・地上で納める")]
-    public bool autoEatOnPickup = false;
+    // 感情のかけらは「大木に届けるもの」。能力強化は感情の塵(EmotionDust)が担当。
 
     [Header("Debug (開発用)")]
     [Tooltip("ゲーム開始時に、各種類のかけらをこの数ずつ持った状態で始める。0なら何も持たない")]
@@ -61,13 +60,7 @@ void Update()
 
 public void Add(EmotionType t)
     {
-        // 触れた瞬間に自動で食べる設定なら、持ち物に入れずにその場で食べる
-        if (autoEatOnPickup)
-        {
-            EatNow(t);
-            return;
-        }
-
+        // 持ち物に入れる
         carried[(int)t]++;
         Toast("かけらを拾った: " + EmotionInfo.NameJp(t), 1.5f);
     }

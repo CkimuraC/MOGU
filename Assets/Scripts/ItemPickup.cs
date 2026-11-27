@@ -4,7 +4,8 @@ public enum ItemKind
 {
     Heal, // ● スタミナ回復
     Star, // ★ 最大スタミナを一時的に増加
-    Shard // ◆ 感情のかけら(持ち物に入る)
+    Shard, // ◆ 感情のかけら(持ち物に入る。大木に届けるためのもの)
+    Dust   // ・ 感情の塵(触れると吸収。ゲージが増え、一時的に能力強化)
 }
 
 /// <summary>
@@ -27,6 +28,8 @@ public class ItemPickup : MonoBehaviour
 
     [Header("Shard (感情のかけら)")]
     public EmotionType emotion;
+    [Tooltip("Dust のとき、ゲージが増える量。負なら、モグラ側(EmotionDust)の設定を使う")]
+    public float dustAmount = -1f;
 
     MoleController mole;
 
@@ -56,6 +59,12 @@ void Collect()
                 {
                     var inv = mole.GetComponent<ShardInventory>();
                     if (inv != null) inv.Add(emotion);
+                    break;
+                }
+            case ItemKind.Dust:
+                {
+                    var dust = mole.GetComponent<EmotionDust>();
+                    if (dust != null) dust.Absorb(emotion, dustAmount);
                     break;
                 }
         }

@@ -183,7 +183,18 @@ public static int ShardEatIndex() { return InputBlocked ? -1 : ShardEatIndexRaw(
 #endif
     }
 
-/// <summary>「かけらを使う」画面を開く。Eキー / ○ボタン。(メニューが閉じているときに調べる)</summary>
+/// <summary>デバッグ用:全種類の塵をひとつずつ吸収する。Hキー</summary>
+    public static bool DebugGiveDustPressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        var k = Keyboard.current;
+        return k != null && k.hKey.wasPressedThisFrame;
+#else
+        return Input.GetKeyDown(KeyCode.H);
+#endif
+    }
+
+/// <summary>(廃止済み)「かけらを使う」画面を開く。Eキー / ○ボタン。(メニューが閉じているときに調べる)</summary>
     public static bool ShardMenuPressed()
     {
         return ShardEatSelectedPressedRaw();
