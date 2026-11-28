@@ -109,6 +109,7 @@ void OnGUI()
             GUILayout.Space(UiText.Px(10));
             DrawRepair();
         DrawDigEffect();
+        DrawDigSound();
             GUILayout.Space(UiText.Px(10));
             DrawCamera();
             GUILayout.Space(UiText.Px(10));
@@ -317,6 +318,19 @@ void DrawDigEffect()
         de.lifeMax = Slider("消えるまで(秒)", de.lifeMax, 0.2f, 1.2f, "0.00");
         de.brighten = Slider("明るさ", de.brighten, 0f, 0.4f, "0.00");
     }
+
+void DrawDigSound()
+    {
+        var ds = FindFirstObjectByType<DigSound>();
+        if (ds == null) return;
+        GUILayout.Label("■ 掘ったときの音(仮)");
+        ds.soundEnabled = Toggle("音を鳴らす", ds.soundEnabled);
+        if (!ds.soundEnabled) return;
+        ds.volume = Slider("音量", ds.volume, 0f, 1f, "0.00");
+        ds.minInterval = Slider("鳴らす間隔(秒)", ds.minInterval, 0.02f, 0.3f, "0.00");
+        ds.pitchRandom = Slider("音程のばらつき", ds.pitchRandom, 0f, 0.3f, "0.00");
+    }
+
 
 
 // ---------------- カメラ(引いて見る) ----------------
