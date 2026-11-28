@@ -42,6 +42,8 @@ public class GiantTree : MonoBehaviour
     [Header("Quest (クエスト)")]
     [Tooltip("地上で、大木の中心から、この距離(ユニット)以内なら、話しかけられる")]
     public float interactRadius = 3.5f;
+    [Tooltip("「はなれる」を選んだあと、モグラが自動で歩いて止まる位置(大木の中心からの距離)。話しかける範囲より外にする")]
+    public float standbyDistance = 5.5f;
 
     DirtTerrain terrain;
     SpriteRenderer sr;
@@ -104,6 +106,14 @@ public class GiantTree : MonoBehaviour
         if (!visible || terrain == null) return false;
         if (molePos.y < terrain.TopY - 0.3f) return false;   // 地中にいるときは、話しかけられない
         return Mathf.Abs(molePos.x - transform.position.x) <= interactRadius;
+    }
+
+    /// <summary>「はなれる」のあと、モグラが止まる定位置のx。いま居る側(左右)へ、大木から standbyDistance だけ離れた場所。</summary>
+    public float StandbyX(float moleX)
+    {
+        float dx = moleX - transform.position.x;
+        float side = dx >= 0f ? 1f : -1f;
+        return transform.position.x + side * Mathf.Max(standbyDistance, interactRadius + 0.5f);
     }
 }
 

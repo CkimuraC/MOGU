@@ -8,6 +8,12 @@ public class StaminaHud : MonoBehaviour
     [Header("補助の説明(プレイヤー向け・仮)")]
     [Tooltip("スタミナ切れで回復がだんだん遅くなることを説明する文を、画面の左に出す。不要になったらオフにする")]
     public bool showRecoveryHelp = true;
+
+    [Header("ゲージの色(増えた分)")]
+    [Tooltip("ごはんで増えた最大スタミナの部分の色")]
+    public Color mealGaugeColor = new Color(1f, 0.62f, 0.15f);
+    [Tooltip("★ブーストで増えた最大スタミナの部分の色")]
+    public Color starGaugeColor = new Color(1f, 0.92f, 0.3f);
     [Tooltip("スタミナが切れた瞬間のお知らせを出す秒数")]
     public float depletedBannerSeconds = 4f;
     ScanPulse scan;
@@ -31,16 +37,45 @@ void OnGUI()
 
         // スタミナのゲージ(★ブースト中は長くなる)
         float max = mole.MaxStaminaCurrent;
-        float ratio = Mathf.Clamp01(mole.Stamina / Mathf.Max(1f, max));
-        float barW = UiText.Px(320) * max / Mathf.Max(1f, mole.maxStamina);
+        float baseMax = Mathf.Max(1f, mole.maxStamina);
+        float wound = mole.WoundAmount;                  // ぶつかって、一時的に減っている分
+        float effBase = Mathf.Max(1f, baseMax - wound);  // いまの、ふだんの分の長さ(緑)
+        float mealB = mole.MealBonus;
+        float itemB = mole.ItemBonus;
+        float total = Mathf.Max(1f, effBase + mealB + itemB);
+        float barW = UiText.Px(320) * max / baseMax; // 削られた分、ゲージそのものが短くなる
         var frame = new Rect(x, y, barW, UiText.Px(28));
-        var fill = new Rect(frame.x + 2, frame.y + 2, (frame.width - 4) * ratio, frame.height - 4);
+        float inner = frame.width - 4f;
+        float st = mole.Stamina;
+        float k = inner / total;                                  // 1スタミナあたりの幅
+        float x0 = frame.x + 2f, yy = frame.y + 2f, hh = frame.height - 4f;
+
+        // ゲージは、左から ふだんの分 → ごはんで増えた分 → アイテムで増えた分 の順
+        float stBase = Mathf.Min(st, effBase);
+        float stMeal = Mathf.Clamp(st - effBase, 0f, mealB);
+        float stItem = Mathf.Clamp(st - effBase - mealB, 0f, itemB);
+        float baseRatio = Mathf.Clamp01(stBase / effBase);
 
         var prev = GUI.color;
         GUI.color = new Color(0f, 0f, 0f, 0.65f);
         GUI.DrawTexture(frame, Texture2D.whiteTexture);
-        GUI.color = Color.Lerp(new Color(0.9f, 0.25f, 0.2f), new Color(0.45f, 0.85f, 0.3f), ratio);
-        GUI.DrawTexture(fill, Texture2D.whiteTexture);
+
+        // 増えた分の枠(からの部分)を、それぞれの色でほんのり色づけ
+        float mx = x0 + effBase * k;
+        float ix = mx + mealB * k;
+        if (mealB > 0.5f) { GUI.color = new Color(mealGaugeColor.r, mealGaugeColor.g, mealGaugeColor.b, 0.25f); GUI.DrawTexture(new Rect(mx, yy, mealB * k, hh), Texture2D.whiteTexture); }
+        if (itemB > 0.5f) { GUI.color = new Color(starGaugeColor.r, starGaugeColor.g, starGaugeColor.b, 0.25f); GUI.DrawTexture(new Rect(ix, yy, itemB * k, hh), Texture2D.whiteTexture); }
+
+        // 中身
+        GUI.color = Color.Lerp(new Color(0.9f, 0.25f, 0.2f), new Color(0.45f, 0.85f, 0.3f), baseRatio);
+        GUI.DrawTexture(new Rect(x0, yy, stBase * k, hh), Texture2D.whiteTexture);
+        if (stMeal > 0.01f) { GUI.color = mealGaugeColor; GUI.DrawTexture(new Rect(mx, yy, stMeal * k, hh), Texture2D.whiteTexture); }
+        if (stItem > 0.01f) { GUI.color = starGaugeColor; GUI.DrawTexture(new Rect(ix, yy, stItem * k, hh), Texture2D.whiteTexture); }
+
+        // 区切りの細い線(ふだん|ごはん|アイテム)
+        GUI.color = new Color(0f, 0f, 0f, 0.8f);
+        if (mealB > 0.5f || itemB > 0.5f) GUI.DrawTexture(new Rect(mx - 1f, yy, 2f, hh), Texture2D.whiteTexture);
+        if (mealB > 0.5f && itemB > 0.5f) GUI.DrawTexture(new Rect(ix - 1f, yy, 2f, hh), Texture2D.whiteTexture);
         GUI.color = prev;
 
         y = frame.yMax + UiText.Px(6);
@@ -62,11 +97,25 @@ void OnGUI()
             }
         }
 
-        if (mole.BoostBonus > 0.5f)
+        if (mole.MealBonus > 0.5f)
         {
             UiText.Label(new Rect(x, y, w, lh),
-                "★ブースト中: 最大スタミナ +" + Mathf.CeilToInt(mole.BoostBonus) + "  (あと" + Mathf.CeilToInt(mole.BoostTimeRemaining) + "秒)",
-                18, new Color(1f, 0.9f, 0.3f));
+                "◆" + mole.MealLabel + "の効果中: 最大スタミナ +" + Mathf.CeilToInt(mole.MealBonus) + "  (あと" + Mathf.CeilToInt(mole.MealTimeRemaining) + "秒)",
+                18, mealGaugeColor);
+            y += lh;
+        }
+        if (mole.ItemBonus > 0.5f)
+        {
+            UiText.Label(new Rect(x, y, w, lh),
+                "★ブースト中: 最大スタミナ +" + Mathf.CeilToInt(mole.ItemBonus) + "  (あと" + Mathf.CeilToInt(mole.ItemTimeRemaining) + "秒)",
+                18, starGaugeColor);
+            y += lh;
+        }
+        if (mole.WoundAmount > 0.5f)
+        {
+            UiText.Label(new Rect(x, y, w, lh),
+                "▼ぶつかって、最大スタミナ -" + Mathf.CeilToInt(mole.WoundAmount) + (float.IsInfinity(mole.WoundTimeRemaining) ? "" : "  (あと" + Mathf.CeilToInt(mole.WoundTimeRemaining) + "秒で元に戻る)"),
+                18, new Color(1f, 0.45f, 0.4f));
             y += lh;
         }
         if (mole.Exhausted)

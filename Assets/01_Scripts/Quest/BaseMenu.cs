@@ -35,6 +35,14 @@ public class BaseMenu : MonoBehaviour
         public Action onCancel; // もどる。nullなら閉じる
     }
 
+    [Header("Meals (ごはん) - スタート地点で食べられる")]
+    [Tooltip("名前・最大スタミナの増える量・続く時間(秒)。いまは素材なしで、選ぶだけで食べられる(仮)")]
+    public List<MealDef> meals = new List<MealDef>
+    {
+        new MealDef { name = "おにぎり", description = "ひとくちで食べられる、小さなおにぎり。", staminaBonus = 40f, durationSeconds = 90f },
+        new MealDef { name = "ごはん定食", description = "おかずのついた、しっかりした食事。", staminaBonus = 100f, durationSeconds = 180f },
+    };
+
     public static bool IsOpen { get; private set; }
 
     EmotionDust dust;
@@ -93,7 +101,9 @@ public void OpenMenu()
         if (tree != null && tree.IsMoleNear(mole.transform.position)) { ShowTreeMenu(); return; }
 
         var at = mgr.NearestBaseWithin(mole.transform.position, mgr.interactRadius);
-        if (at != null) ShowBaseMain(at); else ShowMain();
+        if (at != null) ShowBaseMain(at);
+        else if (NearStartPoint()) ShowStartPoint();
+        else ShowMain();
     }
 
 /// <summary>「かけらを使う」画面を開く(Eキー / ○ボタン)。</summary>
@@ -115,7 +125,7 @@ void ShowTreeMenu()
         if (q == null)
         {
             p.lines.Add("地上にそびえる、大きな木。");
-            p.choices.Add(C("はなれる", Close));
+            p.choices.Add(C("はなれる", LeaveTree));
             p.onCancel = Close;
             Show(p);
             return;
@@ -126,21 +136,21 @@ void ShowTreeMenu()
         {
             p.lines.Add("すべてのお願いを、叶えてくれたね。ありがとう。");
             p.lines.Add("(新しい依頼は、準備中です)");
-            p.choices.Add(C("はなれる", Close));
+            p.choices.Add(C("はなれる", LeaveTree));
         }
         else if (!q.Accepted)
         {
             p.lines.Add("「" + cur.message + "」");
             p.lines.Add("依頼: " + q.CurrentTitle);
             p.choices.Add(C("クエストを受ける", ShowQuestDetail, true, q.CurrentTitle));
-            p.choices.Add(C("はなれる", Close));
+            p.choices.Add(C("はなれる", LeaveTree));
         }
         else if (q.CanReport)
         {
             p.lines.Add("「おかえり。集めてきてくれたんだね」");
             p.lines.Add(q.CurrentTitle + " を、達成できます。");
             p.choices.Add(C("報告する", OnReport, true, "必要な数だけ、かけらを渡します"));
-            p.choices.Add(C("はなれる", Close));
+            p.choices.Add(C("はなれる", LeaveTree));
         }
         else
         {
@@ -149,7 +159,7 @@ void ShowTreeMenu()
             AddProgressLines(p, q);
             p.choices.Add(C("報告する", OnReport, false, "まだ、必要な数がそろっていません"));
             p.choices.Add(C("クエストをリタイアする", ShowAbandonConfirm, true, "集めたかけらは、持ったままです"));
-            p.choices.Add(C("はなれる", Close));
+            p.choices.Add(C("はなれる", LeaveTree));
         }
         p.onCancel = Close;
         Show(p);
@@ -310,6 +320,74 @@ string NotReadyText()
         selected = 0;
         while (selected < p.choices.Count && !p.choices[selected].enabled) selected++;
         if (selected >= p.choices.Count) selected = 0;
+    }
+
+    // ---------------- スタート地点(初期位置)。ごはんが食べられる ----------------
+
+    bool NearStartPoint()
+    {
+        return Vector2.Distance(mole.transform.position, mgr.InitialPosition) <= mgr.interactRadius;
+    }
+
+    static string FormatSeconds(float s)
+    {
+        int t = Mathf.RoundToInt(s);
+        if (t < 60) return t + "秒";
+        return (t % 60 == 0) ? (t / 60) + "分" : (t / 60) + "分" + (t % 60) + "秒";
+    }
+
+    static string MealNote(MealDef m)
+    {
+        return "最大スタミナ +" + Mathf.RoundToInt(m.staminaBonus) + "  /  " + FormatSeconds(m.durationSeconds) + "つづく";
+    }
+
+    void ShowStartPoint()
+    {
+        var p = new Page { title = "スタート地点" };
+        p.lines.Add("大木の下の、はじまりの空洞です。");
+        p.lines.Add("ごはんを食べると、しばらくのあいだ、最大スタミナが増えます。");
+        AddMealStatus(p);
+        p.choices.Add(C("ごはんを食べる", ShowMealSelect, meals != null && meals.Count > 0, "効果は、時間がたつと切れます"));
+        p.choices.Add(C("やめる", Close));
+        p.onCancel = Close;
+        Show(p);
+    }
+
+    void AddMealStatus(Page p)
+    {
+        if (mole.MealLabel != null)
+            p.lines.Add("いまの効果: " + mole.MealLabel + "  最大スタミナ +" + Mathf.CeilToInt(mole.BoostBonus) + "  (あと" + FormatSeconds(mole.BoostTimeRemaining) + ")");
+    }
+
+    void ShowMealSelect()
+    {
+        var p = new Page { title = "なにを食べますか?" };
+        p.lines.Add("食べると、スタミナも満タンになります。");
+        p.lines.Add("効果中にもう一度食べると、新しい方の効果になります(重なりません)。");
+        AddMealStatus(p);
+        for (int i = 0; i < meals.Count; i++)
+        {
+            var m = meals[i];
+            p.choices.Add(C(m.name, () => EatMeal(m), true, MealNote(m) + "  ―  " + m.description));
+        }
+        p.choices.Add(C("もどる", ShowStartPoint));
+        p.onCancel = ShowStartPoint;
+        Show(p);
+    }
+
+    void EatMeal(MealDef m)
+    {
+        mole.SetMealBoost(m.name, m.staminaBonus, m.durationSeconds);
+        Close();
+        Toast(m.name + "を食べた! 最大スタミナ +" + Mathf.RoundToInt(m.staminaBonus) + "(" + FormatSeconds(m.durationSeconds) + ")");
+    }
+
+    void LeaveTree()
+    {
+        Close();
+        if (mole == null || mgr == null) return;
+        // 大木から離れて、初期位置まで自動で歩く。土でふさがっていて進めないときは、初期位置へ移す
+        mole.AutoWalkTo(mgr.InitialPosition, () => { if (!IsOpen) mgr.ReturnToInitial(); });
     }
 
     void Close()
@@ -715,4 +793,16 @@ static void Wrap(string s, int maxChars, List<string> outLines)
             while (i < s.Length && s[i] == ' ') i++;
         }
     }
+}
+
+/// <summary>ごはん1つぶんの設定(名前・説明・最大スタミナの増える量・続く時間)</summary>
+[System.Serializable]
+public class MealDef
+{
+    public string name;
+    public string description;
+    [Tooltip("最大スタミナが増える量(基本は200)")]
+    public float staminaBonus = 40f;
+    [Tooltip("効果が続く時間(秒)")]
+    public float durationSeconds = 90f;
 }

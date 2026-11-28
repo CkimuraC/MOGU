@@ -19,9 +19,9 @@ public class DarknessOverlay : MonoBehaviour
 
     [Header("Mole Light (モグラの周囲)")]
     [Tooltip("この半径までは完全に見える(ユニット)")]
-    public float lightInnerRadius = 0.6f;
+    public float lightInnerRadius = 0f;
     [Tooltip("この半径で真っ暗になる(ユニット)。画面の高さは約12ユニット")]
-    public float lightOuterRadius = 3.8f;
+    public float lightOuterRadius = 3.5f;
 
     [Header("Scan Light (スキャンで照らされる範囲)")]
     [Tooltip("照らされた範囲の縁のぼかし幅(ユニット)")]
@@ -41,7 +41,10 @@ public class DarknessOverlay : MonoBehaviour
     [Tooltip("土の上端からこの深さまでは完全に明るい(ユニット)")]
     public float surfaceLightFull = 0.0f;
     [Tooltip("土の上端からこの深さで真っ暗になる(ユニット)。0で無効")]
-    public float surfaceLightDepth = 3.5f;
+    public float surfaceLightDepth = 0.8f;
+    [Range(0f, 1f)]
+    [Tooltip("地表の光のグラデーションの具合(深さは変わらない)。1=地表から深さまで、ずっとなだらかに暗くなる / 0=深さの手前まで明るく、近くで一気に暗くなる")]
+    public float surfaceLightSoftness = 1f;
 
     float topY;
     public int sortingOrder = 8; // 地形(0)・アイテム(5)の上、モグラ(10)の下
@@ -141,7 +144,7 @@ public class DarknessOverlay : MonoBehaviour
         }
         // 透過度や地表の光の設定が変わったら、画面全体を計算し直す
         // (しないと、更新範囲の外だけ古い明るさのまま残り、四角く見える)
-        float sig = ambient * 1000f + surfaceLightDepth * 37f + surfaceLightFull * 91f;
+        float sig = ambient * 1000f + surfaceLightDepth * 37f + surfaceLightFull * 91f + surfaceLightSoftness * 173f;
         if (!hasSig || !Mathf.Approximately(sig, lastSig))
         {
             x0 = 0; y0 = 0; x1 = w - 1; y1 = h - 1;
@@ -208,7 +211,10 @@ public class DarknessOverlay : MonoBehaviour
     {
         if (surfaceLightDepth <= 0f) return 0f;
         float depth = topY - worldY; // 上端より上は負 → 完全に明るい
-        return 1f - Smooth(surfaceLightFull, surfaceLightDepth, depth);
+        // 深さ(真っ暗になる位置)は固定。なだらかさは、そこへ向かって暗くなり始める位置を決める
+        float width = Mathf.Lerp(0.15f, 1f, surfaceLightSoftness);
+        float start = Mathf.Max(surfaceLightFull, surfaceLightDepth * (1f - width));
+        return 1f - Smooth(start, surfaceLightDepth, depth);
     }
 
 

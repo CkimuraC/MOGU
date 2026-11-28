@@ -28,7 +28,7 @@ public class DebugPanel : MonoBehaviour
     // 「元に戻す」用に、開始時の値を覚えておく
     bool darknessDefaultsSaved;
     bool defEnabled;
-    float defAmbient, defInner, defOuter, defSurface;
+    float defAmbient, defInner, defOuter, defSurface, defSoft;
 
     void Start()
     {
@@ -52,6 +52,7 @@ void Update()
         defInner = darkness.lightInnerRadius;
         defOuter = darkness.lightOuterRadius;
         defSurface = darkness.surfaceLightDepth;
+        defSoft = darkness.surfaceLightSoftness;
         darknessDefaultsSaved = true;
     }
 
@@ -110,6 +111,9 @@ void OnGUI()
             DrawRepair();
         DrawDigEffect();
         DrawDigSound();
+        DrawScan();
+        DrawMeals();
+        DrawObstacleHit();
             GUILayout.Space(UiText.Px(10));
             DrawCamera();
             GUILayout.Space(UiText.Px(10));
@@ -166,6 +170,7 @@ void DrawDarkness()
 
         // 地表から差し込む光の深さ(0で無効)
         darkness.surfaceLightDepth = Slider("地表の光の深さ (0=なし)", darkness.surfaceLightDepth, 0f, 10f);
+        darkness.surfaceLightSoftness = Slider("地表の光のなだらかさ (グラデーションの幅)", darkness.surfaceLightSoftness, 0f, 1f);
 
         if (GUILayout.Button("暗闇の設定をリセット", GUILayout.Height(RowH)) && darknessDefaultsSaved)
         {
@@ -174,6 +179,7 @@ void DrawDarkness()
             darkness.lightInnerRadius = defInner;
             darkness.lightOuterRadius = defOuter;
             darkness.surfaceLightDepth = defSurface;
+            darkness.surfaceLightSoftness = defSoft;
         }
 
         GUILayout.Label("現在の値: 透過度=" + darkness.ambient.ToString("0.00") +
@@ -331,6 +337,58 @@ void DrawDigSound()
         ds.pitchRandom = Slider("音程のばらつき", ds.pitchRandom, 0f, 0.3f, "0.00");
     }
 
+void DrawScan()
+    {
+        var sp = FindFirstObjectByType<ScanPulse>();
+        if (sp == null) return;
+        GUILayout.Label("■ 探知(サーチ)");
+        sp.maxRadius = Slider("探知範囲", sp.maxRadius, 2f, 30f, "0.0");
+        sp.expandSpeed = Slider("波の広がる速さ", sp.expandSpeed, 3f, 40f, "0.0");
+        sp.cooldown = Slider("次に使えるまで(秒)", sp.cooldown, 0f, 15f, "0.0");
+        sp.revealDuration = Slider("見え続ける時間(秒)", sp.revealDuration, 1f, 30f, "0.0");
+        sp.showOffscreenMarkers = Toggle("画面外の方向マーカー", sp.showOffscreenMarkers);
+        var dk = FindFirstObjectByType<DarknessOverlay>();
+        if (dk != null)
+        {
+            dk.scanEdgeSoftness = Slider("照らす範囲のぼかし", dk.scanEdgeSoftness, 0f, 5f, "0.0");
+            dk.scanFadeTime = Slider("照らしたあと消える時間(秒)", dk.scanFadeTime, 0.2f, 6f, "0.0");
+        }
+    }
+
+void DrawMeals()
+    {
+        var bm = FindFirstObjectByType<BaseMenu>();
+        if (bm == null || bm.meals == null) return;
+        GUILayout.Label("■ ごはん(スタート地点)");
+        for (int i = 0; i < bm.meals.Count; i++)
+        {
+            var m = bm.meals[i];
+            GUILayout.Label(m.name);
+            m.staminaBonus = Mathf.Round(Slider("  最大スタミナ +", m.staminaBonus, 0f, 300f, "0"));
+            m.durationSeconds = Mathf.Round(Slider("  つづく時間(秒)", m.durationSeconds, 5f, 600f, "0"));
+        }
+        var mole = FindFirstObjectByType<MoleController>();
+        if (mole != null && GUILayout.Button("ごはんを食べたことにする(1つ目)", GUILayout.Height(RowH)) && bm.meals.Count > 0)
+            mole.SetMealBoost(bm.meals[0].name, bm.meals[0].staminaBonus, bm.meals[0].durationSeconds);
+    }
+
+void DrawObstacleHit()
+    {
+        var mo = FindFirstObjectByType<MoleController>();
+        if (mo == null) return;
+        GUILayout.Label("■ 障害物にぶつかったとき");
+        mo.obstacleMaxDamage = Slider("最大スタミナが減る量(緑のゲージ)", mo.obstacleMaxDamage, 0f, 60f, "0.0");
+        mo.obstacleMaxDamageSeconds = Slider("時間で元に戻るまで(秒・0=戻らない)", mo.obstacleMaxDamageSeconds, 0f, 120f, "0");
+        mo.obstacleMaxDamageCap = Slider("減る量の上限(割合)", mo.obstacleMaxDamageCap, 0f, 0.9f, "0.00");
+        mo.obstacleStaminaDamage = Slider("(おまけ)スタミナ自体も減らす量", mo.obstacleStaminaDamage, 0f, 40f, "0.0");
+        mo.obstacleHitCooldown = Slider("ぶつかり続けたときの間隔(秒)", mo.obstacleHitCooldown, 0.2f, 3f, "0.0");
+        mo.obstacleHitSay = Toggle("「いてっ!」と言う", mo.obstacleHitSay);
+        if (mo.WoundAmount > 0.5f && GUILayout.Button("削られた最大スタミナを戻す", GUILayout.Height(RowH))) mo.RestoreMaxStamina();
+    }
+
+
+
+
 
 
 // ---------------- カメラ(引いて見る) ----------------
@@ -414,6 +472,7 @@ void DrawResetSave()
         var bm = FindFirstObjectByType<BaseManager>();
         if (bm != null) { bm.DeleteAll(); bm.DeleteSaveFile(); bm.ReturnToInitial(); }
         else { try { if (System.IO.File.Exists(BaseManager.SavePath)) System.IO.File.Delete(BaseManager.SavePath); } catch { } }
+        { var mw = FindFirstObjectByType<MoleController>(); if (mw != null) mw.RestoreMaxStamina(); }
 
         var q = QuestManager.Instance;
         if (q != null) q.DebugResetProgress();

@@ -10,13 +10,13 @@ public class ScanPulse : MonoBehaviour
 {
     [Header("Scan")]
     [Tooltip("探知範囲(ユニット)。画面の高さは約12ユニット")]
-    public float maxRadius = 10f;
+    public float maxRadius = 5f;
     [Tooltip("波が広がる速さ(ユニット/秒)")]
     public float expandSpeed = 14f;
     [Tooltip("次に使えるまでの時間(秒)")]
     public float cooldown = 3f;
     [Tooltip("見つかったものが見え続ける時間(秒)")]
-    public float revealDuration = 8f;
+    public float revealDuration = 5f;
 
     [Header("Look")]
     public Color ringColor = new Color(0.45f, 0.9f, 1f, 1f);

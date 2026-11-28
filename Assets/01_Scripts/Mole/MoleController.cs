@@ -32,6 +32,18 @@ public class MoleController : MonoBehaviour
     [Header("Obstacles")]
     [Tooltip("見えない障害物にぶつかったとき、その障害物を見せる時間(秒)。0で無効")]
     public float bumpRevealSeconds = 1.5f;
+    [Tooltip("障害物にぶつかったとき、スタミナが減る量。0で減らない")]
+    public float obstacleStaminaDamage = 0f;
+    [Tooltip("ぶつかり続けているとき、次にまた減るまでの時間(秒)")]
+    public float obstacleHitCooldown = 0.8f;
+    [Tooltip("ぶつかったとき、モグラが「いてっ!」と言う")]
+    public bool obstacleHitSay = true;
+    [Tooltip("障害物にぶつかったとき、最大スタミナ(緑のゲージの長さ)が一時的に減る量。0で減らない")]
+    public float obstacleMaxDamage = 10f;
+    [Tooltip("減った最大スタミナが、時間で元に戻るまでの秒数。0なら、時間では戻らない(アイテムなどで戻す: RestoreMaxStamina)")]
+    public float obstacleMaxDamageSeconds = 0f;
+    [Tooltip("最大スタミナが減る量の合計の上限(基本の最大スタミナに対する割合)")]
+    [Range(0f, 0.9f)] public float obstacleMaxDamageCap = 0.5f;
 
     [Header("Stamina")]
     public float maxStamina = 200f;
@@ -127,7 +139,7 @@ public class MoleController : MonoBehaviour
     public float RegenMultiplier { get { return Recovering ? RegenMultiplierFor(DepletionCount) : 1f; } }
 
     // ---- 一時的な最大スタミナ増加(★アイテム) ----
-    class StaminaBoost { public float amount; public float remaining; }
+    class StaminaBoost { public float amount; public float remaining; public bool meal; public string label; }
     readonly System.Collections.Generic.List<StaminaBoost> boosts = new System.Collections.Generic.List<StaminaBoost>();
 
     /// <summary>現在の最大スタミナ(基本値 + ブースト)</summary>
@@ -137,12 +149,13 @@ public class MoleController : MonoBehaviour
         {
             float m = maxStamina;
             for (int i = 0; i < boosts.Count; i++) m += boosts[i].amount;
+            m -= WoundAmount; // ぶつかって減った分
             return m;
         }
     }
 
     /// <summary>ブースト中の最大スタミナ増加量(合計)</summary>
-    public float BoostBonus => MaxStaminaCurrent - maxStamina;
+    public float BoostBonus => MealBonus + ItemBonus;
 
     /// <summary>ブーストの残り時間(最長のもの)</summary>
     public float BoostTimeRemaining
@@ -166,6 +179,41 @@ public class MoleController : MonoBehaviour
     {
         boosts.Add(new StaminaBoost { amount = amount, remaining = duration });
         if (alsoFill) Stamina = Mathf.Min(MaxStaminaCurrent, Stamina + amount);
+    }
+
+    // ---- 障害物にぶつかって一時的に減った最大スタミナ ----
+    class Wound { public float amount; public float remaining; }
+    readonly System.Collections.Generic.List<Wound> wounds = new System.Collections.Generic.List<Wound>();
+    /// <summary>いま減っている最大スタミナ(合計)</summary>
+    public float WoundAmount { get { float v = 0f; for (int i = 0; i < wounds.Count; i++) v += wounds[i].amount; return v; } }
+    /// <summary>減った最大スタミナが、元に戻るまでの残り時間(いちばん長いもの)</summary>
+    public float WoundTimeRemaining { get { float t = 0f; for (int i = 0; i < wounds.Count; i++) t = Mathf.Max(t, wounds[i].remaining); return t; } }
+
+    /// <summary>ごはんで増えている最大スタミナ</summary>
+    public float MealBonus { get { float v = 0f; for (int i = 0; i < boosts.Count; i++) if (boosts[i].meal) v += boosts[i].amount; return v; } }
+    /// <summary>探索中のアイテム(★)で増えている最大スタミナ</summary>
+    public float ItemBonus { get { float v = 0f; for (int i = 0; i < boosts.Count; i++) if (!boosts[i].meal) v += boosts[i].amount; return v; } }
+    /// <summary>ごはんの効果の残り時間</summary>
+    public float MealTimeRemaining { get { float t = 0f; for (int i = 0; i < boosts.Count; i++) if (boosts[i].meal) t = Mathf.Max(t, boosts[i].remaining); return t; } }
+    /// <summary>アイテム(★)の効果の残り時間(いちばん長いもの)</summary>
+    public float ItemTimeRemaining { get { float t = 0f; for (int i = 0; i < boosts.Count; i++) if (!boosts[i].meal) t = Mathf.Max(t, boosts[i].remaining); return t; } }
+
+    /// <summary>ごはんの効果。最大スタミナを一定時間だけ増やし、スタミナも満タンにする。もう一度食べると、前のごはんの効果は上書きされる(重ならない)。</summary>
+    public void SetMealBoost(string label, float amount, float duration)
+    {
+        for (int i = boosts.Count - 1; i >= 0; i--) if (boosts[i].meal) boosts.RemoveAt(i);
+        boosts.Add(new StaminaBoost { amount = amount, remaining = duration, meal = true, label = label });
+        Stamina = MaxStaminaCurrent;
+    }
+
+    /// <summary>ごはんの効果が続いているとき、その名前。なければ null</summary>
+    public string MealLabel
+    {
+        get
+        {
+            for (int i = 0; i < boosts.Count; i++) if (boosts[i].meal) return boosts[i].label;
+            return null;
+        }
     }
 
     const float MaxStepPx = 3f;
@@ -256,6 +304,22 @@ void Update()
         Vector2 input = MoleInput.Move();
         bool digHeld = MoleInput.DigHeld();
         if (Frozen) { input = Vector2.zero; digHeld = false; } // フリーズ中は、動けない・掘れない
+
+        // 自動で歩いているとき(大木の「はなれる」)。プレイヤーが動かしたら、そこで止める
+        if (autoWalking)
+        {
+            Vector2 apos = transform.position;
+            Vector2 to = autoTarget - apos;
+            if (Vector2.Distance(apos, autoLastPos) > 0.03f) { autoLastPos = apos; autoStuck = 0f; } else autoStuck += dt;
+            if (input.sqrMagnitude > 0.0001f || Frozen) autoWalking = false;          // プレイヤーが動かしたら止める
+            else if (to.magnitude < 0.12f) autoWalking = false;                         // 着いた
+            else if (Time.time > autoWalkUntil || autoStuck > 0.8f)                     // 進めない(土でふさがっている等)
+            {
+                autoWalking = false;
+                if (autoGiveUp != null) { var cb = autoGiveUp; autoGiveUp = null; cb(); }
+            }
+            else { input = to.normalized; digHeld = false; }
+        }
         if (MoleInput.RefillPressed()) { Stamina = MaxStaminaCurrent; Exhausted = false; } // デバッグ用
 
         if (Exhausted && Stamina >= exhaustRecoverThreshold) Exhausted = false;
@@ -307,9 +371,27 @@ void Update()
         if (resetDepletionOnSurface && DepletionCount > 0 && transform.position.y > terrain.TopY) ResetDepletion();
     }
 
+    bool autoWalking;
+    Vector2 autoTarget, autoLastPos;
+    float autoWalkUntil, autoStuck;
+    System.Action autoGiveUp;
+    public bool AutoWalking { get { return autoWalking; } }
+
+    /// <summary>指定の位置まで、自動で歩く。プレイヤーが操作したら止まる。進めなくなったら giveUp を呼ぶ。</summary>
+    public void AutoWalkTo(Vector2 target, System.Action giveUp = null, float maxSeconds = 10f)
+    {
+        autoTarget = target;
+        autoGiveUp = giveUp;
+        autoLastPos = transform.position;
+        autoStuck = 0f;
+        autoWalkUntil = Time.time + maxSeconds;
+        autoWalking = true;
+    }
+
     void TickBoosts(float dt)
     {
         bool expired = false;
+        for (int w = wounds.Count - 1; w >= 0; w--) { wounds[w].remaining -= dt; if (wounds[w].remaining <= 0f) wounds.RemoveAt(w); }
         for (int i = boosts.Count - 1; i >= 0; i--)
         {
             boosts[i].remaining -= dt;
@@ -374,6 +456,7 @@ Vector2 Step(Vector2 pos, Vector2 dir, float dt, bool digHeld, ref bool dugThisF
         float move = moveSpeed * MoveMul;
         Vector2 free = pos + dir * move * dt;
         if (!Blocked(free)) return free;
+        if (ObstacleBlocked(free)) OnObstacleHit(); // 障害物に、まっすぐぶつかった
 
         // 土に当たった:掘削ボタン+スタミナがあれば削って進む(通常より遅い)
         if (digHeld && !Exhausted && Stamina > 0f)
@@ -489,7 +572,57 @@ Vector2 Step(Vector2 pos, Vector2 dir, float dt, bool digHeld, ref bool dugThisF
     }
 
 
-/// <summary>障害物(✕)に重なるか。掘削中でも通れない。</summary>
+/// <summary>削られた最大スタミナを戻す(アイテムなどから呼ぶ)。amount が 0 以下なら、全部戻す。</summary>
+    public void RestoreMaxStamina(float amount = 0f)
+    {
+        float left = amount <= 0f ? float.MaxValue : amount;
+        for (int i = wounds.Count - 1; i >= 0 && left > 0f; i--)
+        {
+            float r = Mathf.Min(wounds[i].amount, left);
+            wounds[i].amount -= r;
+            left -= r;
+            if (wounds[i].amount <= 0.001f) wounds.RemoveAt(i);
+        }
+    }
+
+    float lastObstacleHit = -99f;
+    /// <summary>最後に障害物にぶつかった時刻(画面の演出用)</summary>
+    public float LastObstacleHitTime { get { return lastObstacleHit; } }
+
+    /// <summary>障害物にぶつかった: スタミナが少し減る。ぶつかり続けると、一定の間隔でまた減る。</summary>
+    void OnObstacleHit()
+    {
+        if (obstacleStaminaDamage <= 0f && obstacleMaxDamage <= 0f) return;
+        if (Time.time - lastObstacleHit < obstacleHitCooldown) return;
+        lastObstacleHit = Time.time;
+        idleTimer = 0f; // ぶつかった直後は、回復を始めない
+
+        // 最大スタミナ(緑のゲージ)が、少しのあいだ減る。上限まで重なり、ぶつかるたびに戻るまでの時間を数え直す
+        if (obstacleMaxDamage > 0f)
+        {
+            float cap = maxStamina * obstacleMaxDamageCap;
+            float dur = obstacleMaxDamageSeconds > 0f ? obstacleMaxDamageSeconds : float.PositiveInfinity; // 0なら、時間では戻らない
+            float add = Mathf.Min(obstacleMaxDamage, Mathf.Max(0f, cap - WoundAmount));
+            if (add > 0f) wounds.Add(new Wound { amount = add, remaining = dur });
+            for (int i = 0; i < wounds.Count; i++) wounds[i].remaining = Mathf.Max(wounds[i].remaining, dur);
+            Stamina = Mathf.Min(Stamina, MaxStaminaCurrent);
+        }
+        // (おまけ)スタミナそのものも減らしたいとき
+        if (obstacleStaminaDamage > 0f) Stamina = Mathf.Max(0f, Stamina - obstacleStaminaDamage);
+
+        if (Stamina <= 0f)
+        {
+            OnDepleted();
+            if (exhaustRecoverThreshold > 0f) Exhausted = true;
+        }
+        if (obstacleHitSay)
+        {
+            var thought = GetComponent<MoleThought>();
+            if (thought != null) thought.Say("いてっ!", 0.8f);
+        }
+    }
+
+    /// <summary>障害物(✕)に重なるか。掘削中でも通れない。</summary>
 bool ObstacleBlocked(Vector2 center)
     {
         var list = Obstacle.All;
