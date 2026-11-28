@@ -148,7 +148,7 @@ void ShowTreeMenu()
             p.lines.Add("受けている依頼: " + q.CurrentTitle);
             AddProgressLines(p, q);
             p.choices.Add(C("報告する", OnReport, false, "まだ、必要な数がそろっていません"));
-            p.choices.Add(C("クエストを諦める", ShowAbandonConfirm, true, "集めたかけらは、持ったままです"));
+            p.choices.Add(C("クエストをリタイアする", ShowAbandonConfirm, true, "集めたかけらは、持ったままです"));
             p.choices.Add(C("はなれる", Close));
         }
         p.onCancel = Close;
@@ -176,7 +176,7 @@ void ShowTreeMenu()
         for (int i = 0; i < EmotionInfo.Count; i++)
             p.lines.Add("　 感情のかけら(" + EmotionInfo.NameJp((EmotionType)i) + ") ×" + q.Need((EmotionType)i));
         p.lines.Add("報酬: " + cur.rewardText);
-        p.lines.Add("★ 必要数がそろうと、帰還して報告できます。達成前に帰還すると、クエストを諦めたことになります。");
+        p.lines.Add("★ 必要数がそろうと、帰還して報告できます。達成前に帰還すると、クエストをリタイアしたことになります。");
         p.choices.Add(C("受ける", () => { q.Accept(); Close(); }));
         p.choices.Add(C("もどる", ShowTreeMenu));
         p.onCancel = ShowTreeMenu;
@@ -186,9 +186,9 @@ void ShowTreeMenu()
     void ShowAbandonConfirm()
     {
         var q = QuestManager.Instance;
-        var p = new Page { title = "クエストを諦めますか?" };
-        p.lines.Add(q.CurrentTitle + " を諦めます。集めたかけらは、持ったままです。もう一度、ここで受け直せます。");
-        p.choices.Add(C("諦める", () => { q.Abandon(); ShowTreeMenu(); }));
+        var p = new Page { title = "クエストをリタイアしますか?" };
+        p.lines.Add(q.CurrentTitle + " をリタイアします。集めたかけらは、持ったままです。もう一度、ここで受け直せます。");
+        p.choices.Add(C("リタイアする", () => { q.Abandon(); ShowTreeMenu(); }));
         p.choices.Add(C("やめる", ShowTreeMenu));
         p.onCancel = ShowTreeMenu;
         Show(p);
@@ -429,47 +429,47 @@ string NotReadyText()
         Show(p);
     }
 
-// 帰還 = クエストを諦める(達成前)。達成済みなら、報告に戻る帰還。
+// 帰還 = クエストをリタイア(達成前)。達成済みなら、報告に戻る帰還。
     bool ReturnGivesUp()
     {
         var q = QuestManager.Instance;
         return q != null && q.Accepted && !q.CanReport;
     }
 
-    string ReturnLabel() { return ReturnGivesUp() ? "帰還する(クエストを諦める)" : "帰還する"; }
+    string ReturnLabel() { return ReturnGivesUp() ? "帰還する(クエストをリタイア)" : "帰還する"; }
 
     string ReturnNote()
     {
-        if (ReturnGivesUp()) return "達成前に帰還すると、クエストを諦めたことになります";
+        if (ReturnGivesUp()) return "達成前に帰還すると、クエストをリタイアしたことになります";
         var q = QuestManager.Instance;
         return q != null && q.CanReport ? "大木に報告できます" : "初期位置に戻る";
     }
 
-    void ShowConfirmReturn(Action back)
+void ShowConfirmReturn(Action back)
     {
         var q = QuestManager.Instance;
-        var p = new Page { title = "帰還しますか?" };
+        bool giveUp = ReturnGivesUp();
+        var p = new Page { title = giveUp ? "クエストをリタイアして帰還しますか?" : "帰還しますか?" };
         p.lines.Add("初期位置(大木の下)に戻ります。");
 
-        bool giveUp = false;
         if (q != null && q.Accepted)
         {
             if (q.CanReport) p.lines.Add("クエストは達成済みです。帰還して、大木に報告しましょう。");
             else
             {
-                giveUp = true;
-                p.lines.Add("★ まだクエストを達成していません。帰還すると、「諦めた」ことになります。(集めたかけらは、持ったままです)");
+                p.lines.Add("★ いま帰還すると、「" + q.CurrentTitle + "」はリタイアになります。大丈夫ですか?");
+                p.lines.Add("集めたかけらは、持ったままです。もう一度、大木で受け直せます。");
             }
         }
 
-        p.choices.Add(C(giveUp ? "諦めて帰還する" : "はい", () =>
+        p.choices.Add(C(giveUp ? "リタイアして帰還する" : "はい", () =>
         {
             if (giveUp) q.Abandon();
             mgr.ReturnToInitial();
             Close();
             Toast("初期位置に帰還しました。" + (q != null && q.CanReport ? "大木で B / × を押すと、報告できます。" : ""));
         }));
-        p.choices.Add(C("いいえ", back));
+        p.choices.Add(C(giveUp ? "やめる(クエストを続ける)" : "いいえ", back));
         p.onCancel = back;
         Show(p);
     }

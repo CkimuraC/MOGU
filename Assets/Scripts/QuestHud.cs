@@ -21,7 +21,7 @@ public class QuestHud : MonoBehaviour
 
         var cur = q.Current;
 
-        // 通知(クエストを受けた・諦めた・達成した)
+        // 通知(クエストを受けた・リタイアした・達成した)
         if (Time.time < q.ToastUntil && !string.IsNullOrEmpty(q.ToastText))
         {
             float big = UiText.Line(26);
@@ -71,7 +71,7 @@ public class QuestHud : MonoBehaviour
         }
         else
         {
-            UiText.Label(new Rect(x, y, w, lh), "帰還すると、クエストを諦めたことになります", 15, gray);
+            UiText.Label(new Rect(x, y, w, lh), "帰還すると、クエストをリタイアしたことになります", 15, gray);
         }
         }
 }
