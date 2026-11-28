@@ -119,6 +119,8 @@ void OnGUI()
             GUILayout.Space(UiText.Px(10));
             DrawQuest();
             GUILayout.Space(UiText.Px(10));
+            DrawResetSave();
+            GUILayout.Space(UiText.Px(10));
             DrawDisplay();
             // ★ここに足す: DrawTeleport(); DrawShards(); など
             GUILayout.EndScrollView();
@@ -313,6 +315,71 @@ void DrawDarkness()
         if (GUILayout.Button("クエストの進行を最初からやり直す", GUILayout.Height(RowH))) q.DebugResetProgress();
         GUILayout.Label("進行は保存されます(PlayerPrefs)。大木で B / × → 受ける・報告", GUILayout.Height(RowH));
     }
+
+// ---------------- セーブデータのリセット ----------------
+    bool resetConfirm;
+    bool restartConfirm;
+void DrawResetSave()
+    {
+        GUILayout.Label("―― リセット ――", GUILayout.Height(RowH));
+
+        GUILayout.Label("セーブデータだけ: 拠点・クエスト進行・かけら・塵ゲージを最初に戻す", GUILayout.Height(RowH));
+        if (!resetConfirm)
+        {
+            if (GUILayout.Button("セーブデータをリセットする...", GUILayout.Height(RowH))) { resetConfirm = true; restartConfirm = false; }
+        }
+        else
+        {
+            GUILayout.Label("本当にリセットしますか? 元には戻せません", GUILayout.Height(RowH));
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("リセットする", GUILayout.Height(RowH))) { resetConfirm = false; ResetAllSaveData(); }
+            if (GUILayout.Button("やめる", GUILayout.Height(RowH))) resetConfirm = false;
+            GUILayout.EndHorizontal();
+        }
+
+        GUILayout.Space(UiText.Px(6));
+        GUILayout.Label("すべて: セーブデータ＋掘った穴・アイテム・スタミナ・位置も最初の状態にして、ゲームをやり直す", GUILayout.Height(RowH));
+        if (!restartConfirm)
+        {
+            if (GUILayout.Button("すべてリセットして最初から始める...", GUILayout.Height(RowH))) { restartConfirm = true; resetConfirm = false; }
+        }
+        else
+        {
+            GUILayout.Label("本当にすべてリセットしますか? 元には戻せません", GUILayout.Height(RowH));
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("すべてリセットする", GUILayout.Height(RowH))) { restartConfirm = false; RestartFromScratch(); }
+            if (GUILayout.Button("やめる", GUILayout.Height(RowH))) restartConfirm = false;
+            GUILayout.EndHorizontal();
+        }
+    }
+
+    public static void ResetAllSaveData()
+    {
+        var bm = FindFirstObjectByType<BaseManager>();
+        if (bm != null) { bm.DeleteAll(); bm.DeleteSaveFile(); bm.ReturnToInitial(); }
+        else { try { if (System.IO.File.Exists(BaseManager.SavePath)) System.IO.File.Delete(BaseManager.SavePath); } catch { } }
+
+        var q = QuestManager.Instance;
+        if (q != null) q.DebugResetProgress();
+
+        var inv = FindFirstObjectByType<ShardInventory>();
+        if (inv != null)
+            for (int i = 0; i < inv.carried.Length; i++) { inv.carried[i] = 0; if (i < inv.delivered.Length) inv.delivered[i] = 0; }
+
+        var dust = FindFirstObjectByType<EmotionDust>();
+        if (dust != null) dust.ClearAll();
+
+        Debug.Log("[DebugPanel] セーブデータをリセットしました");
+    }
+
+// セーブデータを消して、シーンを読み直す(地形・アイテム・スタミナ・位置も初期化される)
+    public static void RestartFromScratch()
+    {
+        ResetAllSaveData();
+        UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+    }
+
+
 
     // ---------------- 感情の塵 ----------------
     EmotionDust dustComp;
