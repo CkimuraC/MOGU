@@ -1,0 +1,414 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+/// <summary>
+/// 仮アイテムを地形内にランダム配置する。
+/// ●=スタミナ回復 / ✕=障害物 / ★=最大スタミナ一時増加
+/// 画像は仮(コードで描画)。本番画像は下の Sprite 欄に入れると差し替わる。
+/// </summary>
+public class ItemSpawner : MonoBehaviour
+{
+    enum Kind { Heal, Star, Obstacle, Shard, Dust }
+
+    [Header("References (空なら自動検索)")]
+    public DirtTerrain terrain;
+    public MoleController mole;
+
+    [Header("Counts")]
+    public int healCount = 12;
+    public int starCount = 5;
+    public int obstacleCount = 14;
+    [Tooltip("感情のかけらの数(種類は6種からランダム。地層とは無関係に散らばる)")]
+    public int shardCount = 28;
+    [Tooltip("感情の塵の数(種類は6種からランダム。食べると一時的に能力強化。地中にたくさん散らばる)")]
+    public int dustCount = 100;
+    [Tooltip("塵を、プレイ中も常にランダムに生成する。上限は Dust Count(これを超えない)")]
+    public bool dustRespawnEnabled = true;
+    [Tooltip("塵が上限より少ないとき、何秒ごとに1つ生成するか")]
+    public float dustRespawnInterval = 3f;
+    [Tooltip("モグラからこの距離(ユニット)より近くでは、生成しない")]
+    public float dustRespawnMinDistance = 7f;
+    [Tooltip("塵の種類ごとの出やすさ(1=基準)。順番は 喜 / 怒 / 哀 / 楽。怒は岩盤を掘るために必要なので、少し多め")]
+    public float[] dustTypeWeights = { 1f, 1.8f, 1f, 1f };
+    [Tooltip("各種類の1個目を、モグラの近く(3〜6ユニット)に置く。動作確認用")]
+    public bool placeOneNearStart = true;
+    [Tooltip("スタミナ回復(●)と最大スタミナ増加(★)も、プレイ中に常にランダム生成する。上限は Heal Count / Star Count")]
+    public bool itemRespawnEnabled = true;
+    [Tooltip("●★が上限より少ないとき、何秒ごとに1つ生成するか")]
+    public float itemRespawnInterval = 4f;
+    public int seed = 777;
+
+    [Header("Placement")]
+    public float minDistanceFromMole = 4f;
+    public float minSpacing = 2.2f;
+    public float edgeMargin = 2f;
+
+    [Header("Depth Density (深さと出現率)")]
+    [Tooltip("食料(●)の出やすさ。横軸=深さ(0=地表〜1=最深)、縦軸=出やすさ(0〜1)。深いほど少ない")]
+    public AnimationCurve healDensityByDepth = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.2f));
+    [Tooltip("感情のかけらの出やすさ。深いほど多い")]
+    public AnimationCurve shardDensityByDepth = new AnimationCurve(new Keyframe(0f, 0.15f), new Keyframe(1f, 1f));
+    [Tooltip("感情の塵の出やすさ。深さに関係なく、ほぼ均等")]
+    public AnimationCurve dustDensityByDepth = new AnimationCurve(new Keyframe(0f, 0.6f), new Keyframe(1f, 1f));
+    [Tooltip("塵の本番画像の差し替え用。順番は 喜び/怒り/悲しみ/恐れ/安心/好奇心。空なら仮画像")]
+    public Sprite[] dustSpriteOverrides = new Sprite[EmotionInfo.Count];
+    [Tooltip("かけらの本番画像の差し替え用。順番は 喜び/怒り/悲しみ/恐れ/安心/好奇心。空なら仮画像")]
+    public Sprite[] shardSpriteOverrides = new Sprite[EmotionInfo.Count];
+
+    [Header("Effects")]
+    public float healAmount = 60f;
+    public float starBoostAmount = 100f;
+    public float starDuration = 20f;
+    public bool starAlsoFills = true;
+    public float obstacleRadius = 0.4f;
+
+    [Header("Detection (スキャン)")]
+    [Tooltip("●★をスキャンするまで隠す")]
+    public bool hideItemsUntilScanned = true;
+    [Tooltip("✕もスキャンするまで隠す(見えない障害物にぶつかることになる)")]
+    public bool hideObstaclesUntilScanned = true;
+
+    [Header("Sprites (空なら仮画像)")]
+    public Sprite healSprite;
+    public Sprite starSprite;
+    public Sprite obstacleSprite;
+
+void Start()
+    {
+        if (terrain == null) terrain = FindFirstObjectByType<DirtTerrain>();
+        if (mole == null) mole = FindFirstObjectByType<MoleController>();
+        if (terrain == null || mole == null) return;
+
+        if (healSprite == null) healSprite = MakeHeal(terrain.pixelsPerUnit);
+        if (starSprite == null) starSprite = MakeStar(terrain.pixelsPerUnit);
+        if (obstacleSprite == null) obstacleSprite = MakeObstacle(terrain.pixelsPerUnit);
+
+        var rng = new System.Random(seed);
+        var placed = new List<Vector2>();
+        Spawn(Kind.Heal, healCount, rng, placed);
+        Spawn(Kind.Star, starCount, rng, placed);
+        Spawn(Kind.Shard, shardCount, rng, placed);
+        Spawn(Kind.Dust, dustCount, rng, placed);
+        Spawn(Kind.Obstacle, obstacleCount, rng, placed);
+    }
+
+// ---- 塵の常時生成(上限つき) ----
+    float dustTimer;
+    float itemTimer;
+    System.Random liveRng;
+
+void Update()
+    {
+        if (terrain == null || mole == null) return;
+
+        if (dustRespawnEnabled)
+        {
+            dustTimer += Time.deltaTime;
+            if (dustTimer >= Mathf.Max(0.2f, dustRespawnInterval))
+            {
+                dustTimer = 0f;
+                if (CountKind(ItemKind.Dust) < dustCount) TrySpawnOne(Kind.Dust);
+            }
+        }
+
+        if (itemRespawnEnabled)
+        {
+            itemTimer += Time.deltaTime;
+            if (itemTimer >= Mathf.Max(0.2f, itemRespawnInterval))
+            {
+                itemTimer = 0f;
+                bool needHeal = CountKind(ItemKind.Heal) < healCount;
+                bool needStar = CountKind(ItemKind.Star) < starCount;
+                if (needHeal && needStar) { if (Random.value < 0.7f) TrySpawnOne(Kind.Heal); else TrySpawnOne(Kind.Star); }
+                else if (needHeal) TrySpawnOne(Kind.Heal);
+                else if (needStar) TrySpawnOne(Kind.Star);
+            }
+        }
+    }
+
+int CountKind(ItemKind k)
+    {
+        int n = 0;
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            var p = transform.GetChild(i).GetComponent<ItemPickup>();
+            if (p != null && p.kind == k) n++;
+        }
+        return n;
+    }
+
+    // 土の中(掘っていないところ)・モグラから遠い・画面に写っていない場所に、1つ生成する
+void TrySpawnOne(Kind kind)
+    {
+        if (liveRng == null) liveRng = new System.Random(System.Environment.TickCount);
+        Rect r = terrain.WorldRect;
+        Vector2 origin = mole.transform.position;
+        var cam = Camera.main;
+        AnimationCurve curve = kind == Kind.Heal ? healDensityByDepth : (kind == Kind.Dust ? dustDensityByDepth : null);
+
+        for (int t = 0; t < 40; t++)
+        {
+            var p = new Vector2(
+                Mathf.Lerp(r.xMin + edgeMargin, r.xMax - edgeMargin, (float)liveRng.NextDouble()),
+                Mathf.Lerp(r.yMin + edgeMargin, r.yMax - edgeMargin, (float)liveRng.NextDouble()));
+
+            float depth01 = Mathf.Clamp01((terrain.TopY - p.y) / terrain.WorldSize.y);
+            if (curve != null && (float)liveRng.NextDouble() > curve.Evaluate(depth01)) continue;
+            if (p.y > terrain.TopY - 0.5f) continue;
+            if ((p - origin).magnitude < dustRespawnMinDistance) continue;
+            if (!terrain.IsSolid(p)) continue;
+
+            if (cam != null)
+            {
+                var vp = cam.WorldToViewportPoint(p);
+                if (vp.x > -0.1f && vp.x < 1.1f && vp.y > -0.1f && vp.y < 1.1f) continue;
+            }
+
+            bool ok = true;
+            for (int i = 0; i < transform.childCount; i++)
+                if (((Vector2)transform.GetChild(i).position - p).magnitude < minSpacing) { ok = false; break; }
+            if (!ok) continue;
+
+            Create(kind, p, kind == Kind.Dust ? PickDustType(liveRng) : 0);
+            return;
+        }
+    }
+
+    /// <summary>感情の塵を、すべて消して、もう一度ランダムに散らす(クエストを受けるたびに呼ぶ)。</summary>
+    public void RespawnDust()
+    {
+        if (terrain == null || mole == null) return;
+
+        var placed = new List<Vector2>();
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            var child = transform.GetChild(i);
+            var pick = child.GetComponent<ItemPickup>();
+            if (pick != null && pick.kind == ItemKind.Dust) { Destroy(child.gameObject); continue; }
+            placed.Add(child.position);
+        }
+
+        var rng = new System.Random(System.Environment.TickCount);
+        Spawn(Kind.Dust, dustCount, rng, placed, true);
+    }
+
+    void Spawn(Kind kind, int count, System.Random rng, List<Vector2> placed, bool noNear = false)
+    {
+        // 食料は深いほど少なく、感情のかけらは深いほど多い
+        AnimationCurve curve = kind == Kind.Heal ? healDensityByDepth : (kind == Kind.Shard ? shardDensityByDepth : (kind == Kind.Dust ? dustDensityByDepth : null));
+
+        for (int i = 0; i < count; i++)
+        {
+            bool near = !noNear && placeOneNearStart && (kind == Kind.Dust ? i < 3 : i == 0);
+            if (!FindSpot(rng, near, placed, curve, out Vector2 p)) continue;
+            placed.Add(p);
+            int emotion = kind == Kind.Dust ? PickDustType(rng) : (kind == Kind.Shard ? rng.Next(EmotionInfo.Count) : 0); // 地層に関係なくランダム
+            Create(kind, p, emotion);
+        }
+    }
+
+// 塵の種類を、重み(dustTypeWeights)つきでランダムに選ぶ
+    int PickDustType(System.Random rng)
+    {
+        float total = 0f;
+        for (int i = 0; i < EmotionInfo.Count; i++) total += (dustTypeWeights != null && i < dustTypeWeights.Length) ? Mathf.Max(0f, dustTypeWeights[i]) : 1f;
+        if (total <= 0f) return rng.Next(EmotionInfo.Count);
+        float r = (float)rng.NextDouble() * total;
+        for (int i = 0; i < EmotionInfo.Count; i++)
+        {
+            r -= (dustTypeWeights != null && i < dustTypeWeights.Length) ? Mathf.Max(0f, dustTypeWeights[i]) : 1f;
+            if (r <= 0f) return i;
+        }
+        return EmotionInfo.Count - 1;
+    }
+
+bool FindSpot(System.Random rng, bool near, List<Vector2> placed, AnimationCurve density, out Vector2 pos)
+    {
+        Vector2 origin = mole.transform.position;
+        Rect r = terrain.WorldRect;
+        float minMole = near ? 2.5f : minDistanceFromMole;
+
+        for (int t = 0; t < 300; t++)
+        {
+            Vector2 p;
+            if (near)
+            {
+                float a = (float)(rng.NextDouble() * Mathf.PI * 2.0);
+                float d = 3f + (float)rng.NextDouble() * 3f;
+                p = origin + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * d;
+            }
+            else
+            {
+                p = new Vector2(
+                    Mathf.Lerp(r.xMin + edgeMargin, r.xMax - edgeMargin, (float)rng.NextDouble()),
+                    Mathf.Lerp(r.yMin + edgeMargin, r.yMax - edgeMargin, (float)rng.NextDouble()));
+
+                // 深さに応じた出やすさ(密度の高い深さほど採用されやすい)
+                if (density != null)
+                {
+                    float depth01 = Mathf.Clamp01((terrain.TopY - p.y) / terrain.WorldSize.y);
+                    if ((float)rng.NextDouble() > density.Evaluate(depth01)) continue;
+                }
+            }
+
+            if (p.x < r.xMin + edgeMargin || p.x > r.xMax - edgeMargin ||
+                p.y < r.yMin + edgeMargin || p.y > r.yMax - edgeMargin) continue;
+            if ((p - origin).magnitude < minMole) continue;
+
+            bool ok = true;
+            for (int i = 0; i < placed.Count; i++)
+                if ((placed[i] - p).magnitude < minSpacing) { ok = false; break; }
+            if (!ok) continue;
+
+            pos = p;
+            return true;
+        }
+        pos = default;
+        return false;
+    }
+
+void Create(Kind kind, Vector2 p, int emotion)
+    {
+        var go = new GameObject(kind == Kind.Shard ? "Shard_" + (EmotionType)emotion : (kind == Kind.Dust ? "Dust_" + (EmotionType)emotion : kind.ToString()));
+        go.transform.SetParent(transform, false);
+        go.transform.position = p;
+
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sortingOrder = 9; // 暗闇(8)の上・モグラ(10)の下。見つかったものは暗闇の中でもはっきり見える
+
+        Color marker = Color.white;
+        switch (kind)
+        {
+            case Kind.Heal:
+                sr.sprite = healSprite;
+                var h = go.AddComponent<ItemPickup>();
+                h.kind = ItemKind.Heal;
+                h.healAmount = healAmount;
+                marker = new Color(0.4f, 0.95f, 0.45f);
+                break;
+            case Kind.Star:
+                sr.sprite = starSprite;
+                var s = go.AddComponent<ItemPickup>();
+                s.kind = ItemKind.Star;
+                s.boostAmount = starBoostAmount;
+                s.boostDuration = starDuration;
+                s.boostAlsoFills = starAlsoFills;
+                marker = new Color(1f, 0.88f, 0.25f);
+                break;
+            case Kind.Shard:
+                {
+                    var et = (EmotionType)emotion;
+                    bool hasOverride = shardSpriteOverrides != null && emotion < shardSpriteOverrides.Length && shardSpriteOverrides[emotion] != null;
+                    sr.sprite = hasOverride ? shardSpriteOverrides[emotion] : ShardSprites.Get(et, terrain.pixelsPerUnit);
+                    var sh = go.AddComponent<ItemPickup>();
+                    sh.kind = ItemKind.Shard;
+                    sh.emotion = et;
+                    marker = EmotionInfo.ColorOf(et);
+                    break;
+                }
+            case Kind.Dust:
+                {
+                    var dt = (EmotionType)emotion;
+                    bool hasOv = dustSpriteOverrides != null && emotion < dustSpriteOverrides.Length && dustSpriteOverrides[emotion] != null;
+                    sr.sprite = hasOv ? dustSpriteOverrides[emotion] : DustSprites.Get(dt, terrain.pixelsPerUnit);
+                    var du = go.AddComponent<ItemPickup>();
+                    du.kind = ItemKind.Dust;
+                    du.emotion = dt;
+                    du.pickupRadius = 0.45f;
+                    marker = EmotionInfo.ColorOf(dt);
+                    break;
+                }
+            case Kind.Obstacle:
+                sr.sprite = obstacleSprite;
+                var o = go.AddComponent<Obstacle>();
+                o.radius = obstacleRadius;
+                marker = new Color(1f, 0.35f, 0.3f);
+                break;
+        }
+
+        // 探知に反応させる(スプライト設定後に追加する)
+        var det = go.AddComponent<Detectable>();
+        det.hiddenUntilScanned = kind == Kind.Obstacle ? hideObstaclesUntilScanned : hideItemsUntilScanned;
+        det.markerColor = marker;
+        det.showMarker = kind != Kind.Obstacle; // 画面外の方向マーカーはアイテムだけ
+    }
+
+    // ---------------- 仮画像の生成 ----------------
+
+    static Sprite MakeHeal(float ppu)
+    {
+        // ● 緑の丸
+        return MakeSprite(16, 16, ppu,
+            (dx, dy) => dx * dx + dy * dy <= 6f * 6f,
+            new Color32(96, 216, 100, 255), new Color32(20, 80, 28, 255));
+    }
+
+    static Sprite MakeStar(float ppu)
+    {
+        // ★ 黄色い星
+        var verts = new Vector2[10];
+        for (int i = 0; i < 10; i++)
+        {
+            float ang = (90f + i * 36f) * Mathf.Deg2Rad;
+            float rad = i % 2 == 0 ? 6.8f : 2.9f;
+            verts[i] = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * rad;
+        }
+        return MakeSprite(16, 16, ppu,
+            (dx, dy) => InPolygon(verts, dx, dy),
+            new Color32(252, 218, 64, 255), new Color32(128, 84, 10, 255));
+    }
+
+    static Sprite MakeObstacle(float ppu)
+    {
+        // ✕ 赤いバツ印
+        return MakeSprite(24, 24, ppu,
+            (dx, dy) => Mathf.Abs(dx) <= 8.5f && Mathf.Abs(dy) <= 8.5f &&
+                        (Mathf.Abs(dx - dy) <= 2.2f || Mathf.Abs(dx + dy) <= 2.2f),
+            new Color32(216, 64, 52, 255), new Color32(62, 14, 10, 255));
+    }
+
+    static bool InPolygon(Vector2[] v, float x, float y)
+    {
+        bool inside = false;
+        for (int i = 0, j = v.Length - 1; i < v.Length; j = i++)
+        {
+            if ((v[i].y > y) != (v[j].y > y) &&
+                x < (v[j].x - v[i].x) * (y - v[i].y) / (v[j].y - v[i].y) + v[i].x)
+                inside = !inside;
+        }
+        return inside;
+    }
+
+    /// <summary>図形判定関数から、縁取り付きのドット絵スプライトを作る。</summary>
+    static Sprite MakeSprite(int w, int h, float ppu,
+        System.Func<float, float, bool> inside, Color32 fill, Color32 outline)
+    {
+        var fillMask = new bool[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                fillMask[y * w + x] = inside(x + 0.5f - w * 0.5f, y + 0.5f - h * 0.5f);
+
+        var px = new Color32[w * h];
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int i = y * w + x;
+                if (fillMask[i]) { px[i] = fill; continue; }
+                bool edge =
+                    (x > 0 && fillMask[i - 1]) || (x < w - 1 && fillMask[i + 1]) ||
+                    (y > 0 && fillMask[i - w]) || (y < h - 1 && fillMask[i + w]);
+                if (edge) px[i] = outline;
+            }
+        }
+
+        var t = new Texture2D(w, h, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp
+        };
+        t.SetPixels32(px);
+        t.Apply(false);
+        return Sprite.Create(t, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), ppu);
+    }
+}
