@@ -32,6 +32,15 @@ public class SurfaceArea : MonoBehaviour
     [Header("Grass Tufts (地表の草)")]
     public bool showGrassTufts = true;
     public int randomSeed = 4242;
+    [Tooltip("草の絵(複数)。入れると、左から右へランダムに並べて貼る(同じ絵が続かない)。空なら仮の草を自動で作る")]
+    public Sprite[] grassSprites;
+    [Tooltip("草の上にときどき置く飾り(花・きのこ・石など)。空なら置かない")]
+    public Sprite[] grassDecorSprites;
+    [Range(0f, 1f)]
+    [Tooltip("草を1枚貼るごとに、飾りを置く確率")]
+    public float grassDecorChance = 0.15f;
+    [Tooltip("草の下端を、土の上端より何ピクセル下げて重ねるか")]
+    public int grassSinkPx = 2;
 
     [Header("Extension Point")]
     [Tooltip("あとから地上の要素を置く親。空なら自動で作られる")]
@@ -146,6 +155,7 @@ public class SurfaceArea : MonoBehaviour
 
     void BuildGrassTufts()
     {
+        if (HasAnySprite(grassSprites)) { BuildGrassFromSprites(); return; }
         int w = terrain.widthPx;
         const int h = 12;
         const int baseRows = 2; // 土に重なる帯
@@ -184,6 +194,64 @@ public class SurfaceArea : MonoBehaviour
         // 土の上端に少し重ねる
         go.transform.position = new Vector3(r.xMin, terrain.TopY - baseRows / terrain.pixelsPerUnit, 0f);
     }
+
+static bool HasAnySprite(Sprite[] a)
+    {
+        if (a == null) return false;
+        for (int i = 0; i < a.Length; i++) if (a[i] != null) return true;
+        return false;
+    }
+
+    // 草の絵を、左から右へ並べて貼る(絵の左下を基準にする。絵の幅は自由)
+    void BuildGrassFromSprites()
+    {
+        float ppu = terrain.pixelsPerUnit;
+        Rect r = terrain.WorldRect;
+        float baseY = terrain.TopY - grassSinkPx / ppu;
+
+        var tiles = new System.Collections.Generic.List<Sprite>();
+        for (int i = 0; i < grassSprites.Length; i++) if (grassSprites[i] != null) tiles.Add(grassSprites[i]);
+        var decors = new System.Collections.Generic.List<Sprite>();
+        if (grassDecorSprites != null)
+            for (int i = 0; i < grassDecorSprites.Length; i++) if (grassDecorSprites[i] != null) decors.Add(grassDecorSprites[i]);
+
+        var root = new GameObject("GrassTufts");
+        root.transform.SetParent(transform, false);
+
+        float x = r.xMin;
+        int n = 0, last = -1;
+        while (x < r.xMax && n < 4000)
+        {
+            int k = Mathf.Min(tiles.Count - 1, Mathf.FloorToInt(Hash(n, 7, randomSeed) * tiles.Count));
+            if (tiles.Count > 1 && k == last) k = (k + 1) % tiles.Count; // 同じ絵が続かない
+            last = k;
+            var s = tiles[k];
+            float wUnits = Mathf.Max(0.05f, s.bounds.size.x);
+
+            var go = new GameObject("Grass_" + n);
+            go.transform.SetParent(root.transform, false);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = s;
+            sr.sortingOrder = 2;
+            go.transform.position = new Vector3(x - s.bounds.min.x, baseY - s.bounds.min.y, 0f);
+
+            if (decors.Count > 0 && Hash(n, 19, randomSeed) < grassDecorChance)
+            {
+                var d = decors[Mathf.Min(decors.Count - 1, Mathf.FloorToInt(Hash(n, 23, randomSeed) * decors.Count))];
+                var dgo = new GameObject("GrassDecor_" + n);
+                dgo.transform.SetParent(root.transform, false);
+                var dsr = dgo.AddComponent<SpriteRenderer>();
+                dsr.sprite = d;
+                dsr.sortingOrder = 3;
+                float cx = x + wUnits * 0.5f - d.bounds.center.x;
+                dgo.transform.position = new Vector3(cx, baseY - d.bounds.min.y, 0f);
+            }
+
+            x += wUnits;
+            n++;
+        }
+    }
+
 
     static float Hash(int x, int y, int seed)
     {

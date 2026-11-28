@@ -489,6 +489,65 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &539563668
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 539563670}
+  - component: {fileID: 539563669}
+  m_Layer: 0
+  m_Name: DigEffect
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &539563669
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539563668}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 325519258aed35f408cfcf187339fd40, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DigEffect
+  effectEnabled: 1
+  particlesPerPixel: 0.05
+  maxPerEvent: 4
+  maxAlive: 80
+  ignoreIfPixelsOver: 300
+  speedMin: 1
+  speedMax: 2.6
+  gravity: 9
+  lifeMin: 0.25
+  lifeMax: 0.55
+  spreadDegrees: 55
+  sizeMinPx: 2
+  sizeMaxPx: 3
+  brighten: 0.12
+  sortingOrder: 7
+--- !u!4 &539563670
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 539563668}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &619394800
 GameObject:
   m_ObjectHideFlags: 0
@@ -611,6 +670,10 @@ MonoBehaviour:
   forestHeightPx: 56
   showGrassTufts: 1
   randomSeed: 4242
+  grassSprites: []
+  grassDecorSprites: []
+  grassDecorChance: 0.15
+  grassSinkPx: 2
   contentRoot: {fileID: 0}
 --- !u!4 &752905409
 Transform:
@@ -1065,6 +1128,18 @@ MonoBehaviour:
     minDigPower: 1.5
   layerWobble: 0.35
   layerEdgeJitter: 0.25
+  edgeShading: 1
+  edgeStyle: 1
+  glowWidthPx: 4
+  glowColor: {r: 0.8156863, g: 0.5882353, b: 0.3372549, a: 1}
+  glowStrength: 0.85
+  glowUseSoilColor: 1
+  glowBrighten: 0.18
+  glowSpotChance: 0.08
+  ceilingShadow: 0.45
+  floorHighlight: 0.22
+  wallShadow: 0.2
+  edgeRoughness: 0
   repairApplyInterval: 0.1
 --- !u!212 &1471143408
 SpriteRenderer:
@@ -1412,6 +1487,11 @@ MonoBehaviour:
   sandColor: {r: 0.8392157, g: 0.72156864, b: 0.47843137, a: 1}
   sandTint: 0
   grainPx: 4
+  settleEnabled: 0
+  freshSandTint: 0.55
+  settleSeconds: 20
+  showFalling: 1
+  fallGravity: 20
   protectRadiusAroundMole: 2.5
   protectInitialCavity: 1
   chunkSizePx: 32
@@ -1450,3 +1530,4 @@ SceneRoots:
   - {fileID: 2032398988}
   - {fileID: 364223112}
   - {fileID: 1377327198}
+  - {fileID: 539563670}

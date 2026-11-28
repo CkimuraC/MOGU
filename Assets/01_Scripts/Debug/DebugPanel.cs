@@ -108,6 +108,7 @@ void OnGUI()
             DrawBases();
             GUILayout.Space(UiText.Px(10));
             DrawRepair();
+        DrawDigEffect();
             GUILayout.Space(UiText.Px(10));
             DrawCamera();
             GUILayout.Space(UiText.Px(10));
@@ -260,12 +261,37 @@ void DrawDarkness()
         tr.repairEnabled = Toggle("掘った穴を自動で修復する", tr.repairEnabled);
         tr.repairDelaySeconds = Slider("埋まり始めるまで(秒)", tr.repairDelaySeconds, 0f, 300f, "0");
         tr.fillDurationSeconds = Slider("完全に埋まるまでの目安(秒)", tr.fillDurationSeconds, 1f, 300f, "0");
-        string styleName = tr.fillStyle == TerrainRepair.FillStyle.FloorAndCeiling ? "上下から" : (tr.fillStyle == TerrainRepair.FillStyle.Floor ? "下から" : "壁ぎわから");
+        string styleName = tr.fillStyle == TerrainRepair.FillStyle.FloorAndCeiling ? "上下から" : (tr.fillStyle == TerrainRepair.FillStyle.Floor ? "下から" : (tr.fillStyle == TerrainRepair.FillStyle.Pile ? "積もる(天井からこぼれて山に)" : "壁ぎわから"));
         if (GUILayout.Button("埋まり方: " + styleName + "  (押して切り替え)", GUILayout.Height(RowH)))
-            tr.fillStyle = (TerrainRepair.FillStyle)(((int)tr.fillStyle + 1) % 3);
+            tr.fillStyle = (TerrainRepair.FillStyle)(((int)tr.fillStyle + 1) % 4);
         tr.grainPx = Mathf.RoundToInt(Slider("砂の粒の大きさ(画素)", tr.grainPx, 1f, 8f, "0"));
         tr.sandTint = Slider("砂の色の濃さ", tr.sandTint, 0f, 1f);
         tr.protectRadiusAroundMole = Slider("モグラの周りは埋めない距離", tr.protectRadiusAroundMole, 0f, 8f, "0.0");
+        tr.settleEnabled = Toggle("埋まった砂の色を、土になじませる", tr.settleEnabled);
+        tr.freshSandTint = Slider("埋まった直後の砂の色の濃さ", tr.freshSandTint, 0f, 1f);
+        tr.settleSeconds = Slider("なじむまでの時間(秒)", tr.settleSeconds, 1f, 120f, "0");
+        tr.showFalling = Toggle("落ちてくる砂を見せる(積もるのとき)", tr.showFalling);
+        tr.fallGravity = Slider("砂が落ちる速さ", tr.fallGravity, 4f, 60f, "0");
+        var dt = FindFirstObjectByType<DirtTerrain>();
+        if (dt != null)
+        {
+            GUILayout.Label("―― 通路の境目 ――", GUILayout.Height(RowH));
+            dt.edgeShading = Toggle("境目の見た目をつける(次に掘るときから)", dt.edgeShading);
+            if (GUILayout.Button("見た目: " + (dt.edgeStyle == DirtTerrain.EdgeStyle.Glow ? "縁に沿って明るい輪" : "天井は暗く・床は明るく") + "  (押して切り替え)", GUILayout.Height(RowH)))
+                dt.edgeStyle = dt.edgeStyle == DirtTerrain.EdgeStyle.Glow ? DirtTerrain.EdgeStyle.Shade : DirtTerrain.EdgeStyle.Glow;
+            if (dt.edgeStyle == DirtTerrain.EdgeStyle.Glow)
+            {
+                dt.glowWidthPx = Slider("輪の太さ(画素)", dt.glowWidthPx, 0.5f, 6f, "0.0");
+                dt.glowUseSoilColor = Toggle("輪の色を、土(地層)の色から作る", dt.glowUseSoilColor);
+                if (dt.glowUseSoilColor) dt.glowBrighten = Slider("土の色より明るくする量", dt.glowBrighten, 0f, 0.6f);
+                else dt.glowStrength = Slider("輪の濃さ(固定色)", dt.glowStrength, 0f, 1f);
+                dt.glowSpotChance = Slider("小石(暗い粒)の割合", dt.glowSpotChance, 0f, 0.3f);
+            }
+            dt.ceilingShadow = Slider("天井の暗さ", dt.ceilingShadow, 0f, 0.9f);
+            dt.floorHighlight = Slider("床の明るさ", dt.floorHighlight, 0f, 0.8f);
+            dt.wallShadow = Slider("横の壁の暗さ", dt.wallShadow, 0f, 0.8f);
+            dt.edgeRoughness = Slider("縁のギザギザ(掘り残しの確率)", dt.edgeRoughness, 0f, 0.8f);
+        }
         GUILayout.Label("修復待ち・修復中のブロック: " + tr.DugChunkCount, GUILayout.Height(RowH));
 
         if (GUILayout.Button("テスト用に早くする(開始3秒・完了10秒)", GUILayout.Height(RowH)))
@@ -276,6 +302,22 @@ void DrawDarkness()
         if (GUILayout.Button("修復だけ10秒進める", GUILayout.Height(RowH))) tr.FastForward(10f);
         if (GUILayout.Button("すべての穴を今すぐ埋める", GUILayout.Height(RowH))) tr.FillAllNow();
     }
+
+void DrawDigEffect()
+    {
+        var de = FindFirstObjectByType<DigEffect>();
+        if (de == null) return;
+        GUILayout.Label("■ 掘ったときのエフェクト");
+        de.effectEnabled = Toggle("土のかけらを出す", de.effectEnabled);
+        if (!de.effectEnabled) return;
+        de.particlesPerPixel = Slider("量", de.particlesPerPixel, 0f, 0.3f, "0.00");
+        de.maxPerEvent = Mathf.RoundToInt(Slider("1回の上限", de.maxPerEvent, 1, 12, "0"));
+        de.speedMax = Slider("勢い", de.speedMax, 1f, 6f, "0.0");
+        de.gravity = Slider("落ちる強さ", de.gravity, 2f, 25f, "0.0");
+        de.lifeMax = Slider("消えるまで(秒)", de.lifeMax, 0.2f, 1.2f, "0.00");
+        de.brighten = Slider("明るさ", de.brighten, 0f, 0.4f, "0.00");
+    }
+
 
 // ---------------- カメラ(引いて見る) ----------------
     CameraFollow camFollow;

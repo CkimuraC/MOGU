@@ -51,7 +51,37 @@ public class DirtTerrain : MonoBehaviour
     bool dirty;
     bool urgentDirty;          // 掘ったとき(すぐ画面に反映したい)
     float lastApplyTime;
+    int[] rimStamp;            // 陰影の更新で、同じ画素を何度も計算しないための目印
+    int rimToken;
+    Color32[] bodyColors;      // 縁の陰影をつける前の、いまの土の色(砂の色も含む)
     Color32[] baseColors;      // 土の元の色(埋め戻すときに使う)
+
+    [Header("Tunnel Edge (通路の境目)")]
+    [Tooltip("通路の境目に陰影をつける(天井=暗く、床=明るく、横=少し暗く)")]
+    public bool edgeShading = true;
+    public enum EdgeStyle { Shade, Glow }
+    [Tooltip("Glow=掘った縁に沿って、明るい砂色の輪がつく / Shade=天井は暗く・床は明るく")]
+    public EdgeStyle edgeStyle = EdgeStyle.Glow;
+    [Range(0.5f, 6f)] [Tooltip("Glowの輪の太さ(画素)")]
+    public float glowWidthPx = 4f;
+    [Tooltip("Glowの輪の色")]
+    public Color glowColor = new Color32(208, 150, 86, 255);
+    [Range(0f, 1f)] [Tooltip("Glowの輪の濃さ(0=土の色のまま、1=輪の色)")]
+    public float glowStrength = 0.85f;
+    [Tooltip("輪の色を、その場所の土(地層)の色から作る。オフなら、Glow Color の固定の色")]
+    public bool glowUseSoilColor = true;
+    [Range(0f, 0.6f)] [Tooltip("土の色を、どれだけ明るくして輪にするか(0.18=約18%明るい)。Glow Use Soil Color がオンのとき")]
+    public float glowBrighten = 0.18f;
+    [Range(0f, 0.3f)] [Tooltip("輪の上に、小さな暗い粒(小石)が出る割合")]
+    public float glowSpotChance = 0.08f;
+    [Range(0f, 1f)] [Tooltip("天井(通路の上の土)の暗さ")]
+    public float ceilingShadow = 0.55f;
+    [Range(0f, 1f)] [Tooltip("床(通路の下の土)の明るさ")]
+    public float floorHighlight = 0.32f;
+    [Range(0f, 1f)] [Tooltip("横の壁の暗さ")]
+    public float wallShadow = 0.25f;
+    [Range(0f, 1f)] [Tooltip("掘った縁のギザギザ(縁の画素を、この確率で掘り残す)")]
+    public float edgeRoughness = 0f;
 
     [Header("Repair (埋め戻し)")]
     [Tooltip("埋め戻しだけの変化は、画像の更新をこの間隔(秒)にまとめる。掘っているときは、すぐ更新する")]
@@ -59,6 +89,9 @@ public class DirtTerrain : MonoBehaviour
 
     /// <summary>土を掘ったときに呼ばれる。掘った範囲(px)の左下・右上を渡す。</summary>
     public event System.Action<int, int, int, int> Dug;
+    /// <summary>土を掘ったときに呼ばれる。掘った中心の位置(ワールド)、削れた画素数、削れた土の色を渡す。エフェクト用。</summary>
+    public event System.Action<Vector2, int, Color32> DugWorld;
+    Color32 digSample;
     static readonly Color32 Clear = new Color32(0, 0, 0, 0);
 
     public Vector2 WorldSize => new Vector2(widthPx, heightPx) / pixelsPerUnit;
@@ -139,6 +172,7 @@ void BuildTexture()
             }
         }
         tex.SetPixels32(pixels);
+        bodyColors = (Color32[])pixels.Clone();
         baseColors = pixels; // 埋め戻すときに、元の土の色へ戻せるよう覚えておく
         tex.Apply(false);
 
@@ -234,7 +268,7 @@ public bool IsSolid(Vector2 world)
 
 
     /// <summary>円形ブラシで土を削る。新たに削れたピクセル数を返す。</summary>
-    public int Dig(Vector2 world, float radiusPx)
+public int Dig(Vector2 world, float radiusPx)
     {
         Vector2 p = (world - MinWorld) * pixelsPerUnit;
         int b = undiggableBorderPx;
@@ -245,6 +279,9 @@ public bool IsSolid(Vector2 world)
         if (x0 > x1 || y0 > y1) return 0;
 
         float r2 = radiusPx * radiusPx;
+        float inner = radiusPx - 1.2f;
+        float inner2 = inner > 0f ? inner * inner : 0f;
+        bool rough = edgeRoughness > 0f && inner > 0f;
         var data = tex.GetRawTextureData<Color32>();
         int count = 0;
         for (int y = y0; y <= y1; y++)
@@ -253,19 +290,25 @@ public bool IsSolid(Vector2 world)
             for (int x = x0; x <= x1; x++)
             {
                 float dx = x + 0.5f - p.x;
-                if (dx * dx + dy * dy > r2) continue;
+                float d2 = dx * dx + dy * dy;
+                if (d2 > r2) continue;
                 int i = y * widthPx + x;
                 if (dug[i]) continue;
+                // 縁の一番外側の画素を、ときどき掘り残す(ギザギザになる)。この画素は、次に内側を掘るときに消える
+                if (rough && d2 > inner2 && Hash(x, y, randomSeed + 555) < edgeRoughness) continue;
                 dug[i] = true;
+                digSample = bodyColors[i];
                 data[i] = Clear;
                 count++;
             }
         }
         if (count > 0)
         {
+            if (edgeShading) { int rr = RimRadius; UpdateRim(x0 - rr, y0 - rr, x1 + rr, y1 + rr); }
             dirty = true;
             urgentDirty = true;
             if (Dug != null) Dug(x0, y0, x1, y1);
+            if (DugWorld != null) DugWorld(world, count, digSample);
         }
         return count;
     }
@@ -274,7 +317,7 @@ public bool IsSolid(Vector2 world)
     public bool IsDugIndex(int i) { return dug[i]; }
 
     /// <summary>掘られた画素を、土に埋め戻す。元の土の色に、砂の色を sandTint の割合だけ混ぜる。埋めた数を返す。</summary>
-    public int RefillPixels(System.Collections.Generic.List<int> indices, Color sand, float sandTint)
+public int RefillPixels(System.Collections.Generic.List<int> indices, Color sand, float sandTint)
     {
         if (indices == null || indices.Count == 0) return 0;
         var data = tex.GetRawTextureData<Color32>();
@@ -285,12 +328,142 @@ public bool IsSolid(Vector2 world)
             if (!dug[i]) continue;
             dug[i] = false;
             Color32 b = baseColors[i];
-            data[i] = sandTint > 0f ? (Color32)Color.Lerp(b, sand, sandTint) : b;
+            Color32 c = sandTint > 0f ? (Color32)Color.Lerp(b, sand, sandTint) : b;
+            bodyColors[i] = c;
+            data[i] = c;
             n++;
         }
-        if (n > 0) dirty = true;
+        if (n > 0)
+        {
+            if (edgeShading) UpdateRimAround(indices, data);
+            dirty = true;
+        }
         return n;
     }
+
+    /// <summary>埋め戻した直後の砂の色を、時間をかけて土の色へなじませる。指定の画素の「砂の混ぜ具合」を tint(0=土の色、1=砂の色)にする。</summary>
+    public void SetTintPixels(int[] indices, Color sand, float tint)
+    {
+        if (indices == null || indices.Length == 0) return;
+        var data = tex.GetRawTextureData<Color32>();
+        bool any = false;
+        for (int k = 0; k < indices.Length; k++)
+        {
+            int i = indices[k];
+            if (dug[i]) continue;
+            Color32 b = baseColors[i];
+            Color32 c = tint > 0f ? (Color32)Color.Lerp(b, sand, tint) : b;
+            bodyColors[i] = c;
+            if (edgeShading) ShadeAt(data, i % widthPx, i / widthPx); else data[i] = c;
+            any = true;
+        }
+        if (any) dirty = true;
+    }
+
+// ---- 通路の境目の陰影 ----
+    bool IsAirAt(int x, int y)
+    {
+        if (x < 0 || x >= widthPx || y < 0 || y >= heightPx) return false; // 範囲外と地表の上は、土として扱う(地表の見た目を変えない)
+        return dug[y * widthPx + x];
+    }
+
+    /// <summary>範囲(px)の土の色を、通路との位置関係で陰影をつけて書き直す。天井=暗、床=明、横=少し暗。</summary>
+void UpdateRim(int x0, int y0, int x1, int y1)
+    {
+        x0 = Mathf.Max(0, x0); y0 = Mathf.Max(0, y0);
+        x1 = Mathf.Min(widthPx - 1, x1); y1 = Mathf.Min(heightPx - 1, y1);
+        var data = tex.GetRawTextureData<Color32>();
+        for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
+                ShadeAt(data, x, y);
+    }
+
+    // 埋め戻した画素と、その周り(2画素)の陰影を、書き直す
+void UpdateRimAround(System.Collections.Generic.List<int> indices, Unity.Collections.NativeArray<Color32> data)
+    {
+        if (rimStamp == null) rimStamp = new int[widthPx * heightPx];
+        rimToken++;
+        int rr = RimRadius;
+        for (int k = 0; k < indices.Count; k++)
+        {
+            int px = indices[k] % widthPx, py = indices[k] / widthPx;
+            for (int dy = -rr; dy <= rr; dy++)
+            {
+                int y = py + dy; if (y < 0 || y >= heightPx) continue;
+                for (int dx = -rr; dx <= rr; dx++)
+                {
+                    int x = px + dx; if (x < 0 || x >= widthPx) continue;
+                    int i = y * widthPx + x;
+                    if (rimStamp[i] == rimToken) continue;
+                    rimStamp[i] = rimToken;
+                    ShadeAt(data, x, y);
+                }
+            }
+        }
+    }
+
+    // 境目の表現が、周り何画素まで影響するか
+    int RimRadius { get { return edgeStyle == EdgeStyle.Glow ? Mathf.CeilToInt(glowWidthPx + 1f) + 1 : 2; } }
+
+    // 1画素の陰影: 天井=暗、床=明、横=少し暗
+void ShadeAt(Unity.Collections.NativeArray<Color32> data, int x, int y)
+    {
+        int i = y * widthPx + x;
+        if (dug[i]) return;
+
+        if (edgeStyle == EdgeStyle.Glow)
+        {
+            Color32 c0 = bodyColors[i];
+            // 輪の太さは、場所ごとに少しだけ揺らす(手で描いたように)
+            float wj = glowWidthPx + (Hash(x / 2, y / 2, randomSeed + 31) - 0.5f);
+            float rmax = Mathf.Max(0.6f, wj + 0.5f);
+            int R = Mathf.CeilToInt(rmax);
+            float best2 = float.MaxValue;
+            float rmax2 = rmax * rmax;
+            for (int dy = -R; dy <= R; dy++)
+            {
+                for (int dx = -R; dx <= R; dx++)
+                {
+                    float d2 = dx * dx + dy * dy;
+                    if (d2 > rmax2 || d2 >= best2) continue;
+                    if (IsAirAt(x + dx, y + dy)) best2 = d2;
+                }
+            }
+            if (best2 > rmax2) { data[i] = c0; return; }
+
+            float f = Mathf.Clamp01((rmax - Mathf.Sqrt(best2)) / 1.2f); // 外側はやわらかく
+            Color cc;
+            if (glowUseSoilColor)
+            {
+                Color soil = c0;
+                Color lighter = soil * (1f + glowBrighten) + new Color(0.02f, 0.02f, 0.02f, 0f); // その地層の色を、少し明るく
+                cc = Color.Lerp(soil, lighter, f);
+            }
+            else cc = Color.Lerp(c0, glowColor, glowStrength * f);
+            if (glowSpotChance > 0f && Hash(x / 3, y / 3, randomSeed + 77) < glowSpotChance) cc *= 0.72f; // 小石のような暗い粒
+            cc.a = 1f;
+            data[i] = (Color32)cc;
+            return;
+        }
+
+        float k = 1f;
+        if (IsAirAt(x, y - 1)) k *= 1f - ceilingShadow;
+        else if (IsAirAt(x, y - 2)) k *= 1f - ceilingShadow * 0.6f;
+        if (IsAirAt(x, y + 1)) k *= 1f + floorHighlight;
+        else if (IsAirAt(x, y + 2)) k *= 1f + floorHighlight * 0.4f;
+        if (IsAirAt(x - 1, y) || IsAirAt(x + 1, y)) k *= 1f - wallShadow;
+
+        Color32 c = bodyColors[i];
+        if (k != 1f)
+        {
+            c = new Color32(
+                (byte)Mathf.Clamp(c.r * k, 0f, 255f),
+                (byte)Mathf.Clamp(c.g * k, 0f, 255f),
+                (byte)Mathf.Clamp(c.b * k, 0f, 255f), 255);
+        }
+        data[i] = c;
+    }
+
 
 
 void LateUpdate()

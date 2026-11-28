@@ -28,7 +28,8 @@ public class TerrainRepair : MonoBehaviour
     {
         FloorAndCeiling, // 上下から: 床と天井の両方から砂が溜まり、穴が真ん中で閉じる
         Floor,           // 下から: 床だけから砂が溜まる
-        Walls            // 壁ぎわから: 壁ぎわの全部から穴が狭くなる
+        Walls,           // 壁ぎわから: 壁ぎわの全部から穴が狭くなる
+        Pile             // 積もる: 天井から砂がこぼれ落ちて、床に山を作りながら埋まる(斜面は約45度まで)
     }
 
     class Circle
@@ -59,6 +60,19 @@ public class TerrainRepair : MonoBehaviour
     [Range(1, 8)]
     [Tooltip("砂の粒の大きさ(画素)。大きいほど、四角いかたまりで埋まる。1・2・4・8のどれかに丸められる")]
     public int grainPx = 4;
+
+    [Header("Pile & Settle (積もる・なじむ)")]
+    [Tooltip("埋め戻した直後の砂の色を、時間をかけて土の色になじませる")]
+    public bool settleEnabled = false;
+    [Range(0f, 1f)]
+    [Tooltip("埋まった直後の砂の色の濃さ(0=土の色、1=砂の色)。ここから、Sand Tint の色へもどる")]
+    public float freshSandTint = 0.55f;
+    [Tooltip("砂の色が土になじむまでの時間(秒)")]
+    public float settleSeconds = 20f;
+    [Tooltip("「積もる」のとき、落ちてくる砂を見せる")]
+    public bool showFalling = true;
+    [Tooltip("砂が落ちる速さ(大きいほど速い)")]
+    public float fallGravity = 20f;
 
     [Header("Protection (埋まらない場所)")]
     [Tooltip("モグラの周り(ユニット)は埋めない。埋もれて動けなくなるのを防ぐ。0で無効")]
@@ -109,6 +123,7 @@ public class TerrainRepair : MonoBehaviour
             {
                 case FillStyle.FloorAndCeiling: return 2.7f; // 補正なしだと、設定の約2.7倍かかった
                 case FillStyle.Floor: return 2.1f;           // 約2.1倍
+                case FillStyle.Pile: return 8.0f;              // 積もる: 実測で調整
                 default: return 2.3f;                         // 壁ぎわ: 約2.3倍
             }
         }
@@ -214,10 +229,12 @@ public class TerrainRepair : MonoBehaviour
 
     // ---------------- 修復 ----------------
 
-    void Update()
+void Update()
     {
-        if (!repairEnabled || terrain == null || hasDug == null) return;
-        Step(Now, Time.deltaTime, maxChunksPerFrame);
+        if (terrain == null || hasDug == null) return;
+        if (repairEnabled) Step(Now, Time.deltaTime, maxChunksPerFrame);
+        ProcessGrains();
+        TickSettle();
     }
 
     /// <summary>修復を1回ぶん進める。maxChunks は、今回調べるブロックの上限。</summary>
@@ -230,7 +247,7 @@ public class TerrainRepair : MonoBehaviour
         Vector2 molePos = mole != null ? (Vector2)mole.transform.position : Vector2.zero;
         float tunnelPx = mole != null ? mole.tunnelWidthPx : 24f;
         int g = Grain;
-        int fronts = fillStyle == FillStyle.Floor ? 1 : 2; // 砂が迫ってくる向きの数(上下、または左右)
+        int fronts = (fillStyle == FillStyle.Floor || fillStyle == FillStyle.Pile) ? 1 : 2; // 砂が迫ってくる向きの数(上下、または左右)
         // 1秒に、粒が何層ぶん埋まるか。通路の幅を、粒の大きさと向きの数で割って、設定の秒数で埋めきる速さにする。
         float rate = (tunnelPx / g / fronts) / Mathf.Max(0.1f, fillDurationSeconds) * fillCalibration * StyleCalibration;
 
@@ -255,7 +272,7 @@ public class TerrainRepair : MonoBehaviour
 
         if (candidates.Count > 0)
         {
-            terrain.RefillPixels(candidates, sandColor, sandTint);
+            LandPixels(candidates);
             WakeAround(candidates);
         }
     }
@@ -292,6 +309,7 @@ void ScanChunk(int c, float now, float dtc, float rate, Vector2 molePos)
                         if (!supported && CanFill(x, y)) supported = true;
                     }
                 }
+                if (any && fillStyle == FillStyle.Pile) supported = PileSupported(bx, by, g);
                 if (!any || !supported) continue;
 
                 // 埋めない場所か(粒の中心で判定)
@@ -299,6 +317,13 @@ void ScanChunk(int c, float now, float dtc, float rate, Vector2 molePos)
                 if (IsProtected(wx, wy, molePos)) continue;
 
                 fillable++;
+                if (fillStyle == FillStyle.Pile)
+                {
+                    if (Random.value >= p * PileWeight(wx)) continue;
+                    if (pendingMask != null && pendingMask[by * width + bx]) continue; // すでに落ちてくる途中
+                    ScheduleGrain(bx, by, ex, ey, g);
+                    continue;
+                }
                 if (Random.value >= p) continue;
 
                 // 粒ごと埋める(粒の中の、掘られた画素すべて)
@@ -334,6 +359,8 @@ bool CanFill(int x, int y)
                 return Solid(x, y - 1);                         // 下に土がある所に、砂が溜まる
             case FillStyle.FloorAndCeiling:
                 return Solid(x, y - 1) || Solid(x, y + 1);     // 下か上に土がある所に、砂が溜まる(上下から埋まる)
+            case FillStyle.Pile:
+                return false;                                   // 積もるは、粒ごとに PileSupported で判定する
             default:
                 return Solid(x - 1, y) || Solid(x + 1, y) || Solid(x, y - 1) || Solid(x, y + 1); // 壁ぎわから
         }
@@ -363,19 +390,207 @@ bool CanFill(int x, int y)
         sleepUntil[cy * cols + cx] = 0f;
     }
 
+// ---------------- 積もる(Pile)・なじむ(Settle) ----------------
+
+    class FallingGrain
+    {
+        public int[] idx;
+        public int bx, by, ex, ey;
+        public Vector2 from, to;
+        public float t0, land;
+        public Transform viz;
+    }
+
+    class Settle
+    {
+        public int[] idx;
+        public float t0;
+    }
+
+    bool[] pendingMask;   // 落ちている途中の粒の画素(二重に予約しない)
+    bool skipFall;
+    float settleTick;
+    Sprite dotSprite;
+    readonly List<FallingGrain> grains = new List<FallingGrain>();
+    readonly List<Settle> settles = new List<Settle>();
+    readonly List<Transform> vizPool = new List<Transform>();
+    readonly List<int> landing = new List<int>();
+
+    /// <summary>粒(g×g)が積もれるか。真下と、左右の下がすべて土(または砂)なら、積もれる。これで、斜面が約45度より急にならない。</summary>
+    bool PileSupported(int bx, int by, int g)
+    {
+        int cx = Mathf.Min(width - 1, bx + g / 2);
+        return Solid(cx, by - 1) && Solid(cx - g, by - 1) && Solid(cx + g, by - 1);
+    }
+
+    /// <summary>山のできやすさ。横へゆるやかに変わるので、砂がこぼれる場所が偏って、山になる。</summary>
+    float PileWeight(float wx)
+    {
+        float n = 0.5f + 0.5f * Mathf.Sin(wx * 0.8f + 1.7f);
+        float m = 0.5f + 0.5f * Mathf.Sin(wx * 0.31f + 0.4f);
+        return 0.4f + 0.6f * n * n * (0.4f + 0.6f * m);
+    }
+
+    void EnsurePending()
+    {
+        if (pendingMask == null) pendingMask = new bool[width * height];
+    }
+
+    Transform GetViz(int g)
+    {
+        Transform t;
+        if (vizPool.Count > 0)
+        {
+            t = vizPool[vizPool.Count - 1];
+            vizPool.RemoveAt(vizPool.Count - 1);
+        }
+        else
+        {
+            if (dotSprite == null)
+            {
+                var tx = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+                tx.SetPixel(0, 0, Color.white);
+                tx.Apply(false);
+                dotSprite = Sprite.Create(tx, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
+            }
+            var go = new GameObject("SandGrain");
+            go.transform.SetParent(transform, false);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = dotSprite;
+            sr.sortingOrder = 1;
+            t = go.transform;
+        }
+        t.GetComponent<SpriteRenderer>().color = sandColor;
+        t.localScale = Vector3.one * (g / terrain.pixelsPerUnit);
+        t.gameObject.SetActive(true);
+        return t;
+    }
+
+    void ReleaseViz(Transform t)
+    {
+        if (t == null) return;
+        t.gameObject.SetActive(false);
+        vizPool.Add(t);
+    }
+
+    /// <summary>粒を1つ、落とす。天井から落ちて、着いたところで埋まる。</summary>
+    void ScheduleGrain(int bx, int by, int ex, int ey, int g)
+    {
+        var idx = new List<int>();
+        for (int y = by; y < ey; y++)
+            for (int x = bx; x < ex; x++)
+            {
+                int i = y * width + x;
+                if (terrain.IsDugIndex(i)) idx.Add(i);
+            }
+        if (idx.Count == 0) return;
+
+        if (skipFall || !showFalling) { candidates.AddRange(idx); return; }
+
+        EnsurePending();
+        for (int y = by; y < ey; y++)
+            for (int x = bx; x < ex; x++) pendingMask[y * width + x] = true;
+
+        float ppu = terrain.pixelsPerUnit;
+        Vector2 min = terrain.MinWorld;
+        int cx = Mathf.Min(width - 1, bx + g / 2);
+        int yTop = ey;
+        int limit = Mathf.Min(height - 1, ey + 96);
+        while (yTop < limit && terrain.IsDugIndex(yTop * width + cx)) yTop++;
+
+        var gr = new FallingGrain();
+        gr.idx = idx.ToArray();
+        gr.bx = bx; gr.by = by; gr.ex = ex; gr.ey = ey;
+        gr.to = new Vector2(min.x + (bx + g * 0.5f) / ppu, min.y + (by + g * 0.5f) / ppu);
+        gr.from = new Vector2(gr.to.x, Mathf.Max(gr.to.y + 0.3f, min.y + yTop / ppu - g * 0.5f / ppu));
+        float h = Mathf.Max(0.1f, gr.from.y - gr.to.y);
+        float dur = Mathf.Min(0.6f, Mathf.Sqrt(2f * h / Mathf.Max(1f, fallGravity)));
+        gr.t0 = Time.time;
+        gr.land = Time.time + dur;
+        gr.viz = GetViz(g);
+        gr.viz.position = new Vector3(gr.from.x, gr.from.y, 0f);
+        grains.Add(gr);
+    }
+
+    /// <summary>落ちている粒を動かし、着いた粒を埋める。</summary>
+    void ProcessGrains()
+    {
+        if (grains.Count == 0) return;
+        float t = Time.time;
+        landing.Clear();
+        for (int k = grains.Count - 1; k >= 0; k--)
+        {
+            var gr = grains[k];
+            float u = (t - gr.t0) / Mathf.Max(0.01f, gr.land - gr.t0);
+            if (u >= 1f)
+            {
+                landing.AddRange(gr.idx);
+                for (int y = gr.by; y < gr.ey; y++)
+                    for (int x = gr.bx; x < gr.ex; x++) pendingMask[y * width + x] = false;
+                ReleaseViz(gr.viz);
+                grains.RemoveAt(k);
+            }
+            else if (gr.viz != null)
+            {
+                float e = u * u; // 落ちるとだんだん速くなる
+                gr.viz.position = new Vector3(gr.from.x, Mathf.Lerp(gr.from.y, gr.to.y, e), 0f);
+            }
+        }
+        if (landing.Count > 0)
+        {
+            LandPixels(landing);
+            WakeAround(landing);
+        }
+    }
+
+    /// <summary>埋め戻す。なじむ演出がオンなら、最初は砂の色を濃くして、あとで土の色へ戻す。</summary>
+    void LandPixels(List<int> list)
+    {
+        float tint = settleEnabled ? freshSandTint : sandTint;
+        int n = terrain.RefillPixels(list, sandColor, tint);
+        if (settleEnabled && n > 0)
+            settles.Add(new Settle { idx = list.ToArray(), t0 = Now });
+    }
+
+    /// <summary>砂の色を、少しずつ土の色へ戻す(0.25秒ごと)。</summary>
+    void TickSettle()
+    {
+        if (settles.Count == 0) return;
+        if (Time.time < settleTick) return;
+        settleTick = Time.time + 0.25f;
+        float now = Now;
+        for (int k = settles.Count - 1; k >= 0; k--)
+        {
+            var s = settles[k];
+            float u = (now - s.t0) / Mathf.Max(0.1f, settleSeconds);
+            if (u >= 1f || !settleEnabled)
+            {
+                terrain.SetTintPixels(s.idx, sandColor, sandTint);
+                settles.RemoveAt(k);
+            }
+            else
+            {
+                terrain.SetTintPixels(s.idx, sandColor, Mathf.Lerp(freshSandTint, sandTint, u));
+            }
+        }
+    }
+
+
     // ---------------- デバッグ用 ----------------
 
     /// <summary>修復だけ、時間を seconds 秒ぶん進める(待たずに、埋まる様子を確かめる)。</summary>
-    public void FastForward(float seconds)
+public void FastForward(float seconds)
     {
         if (terrain == null || hasDug == null) return;
         const float step = 0.1f;
         int n = Mathf.CeilToInt(seconds / step);
+        skipFall = true; // 早送り中は、落ちる演出を飛ばして、すぐ積もらせる
         for (int i = 0; i < n; i++)
         {
             timeOffset += step;
             Step(Now, step, int.MaxValue);
         }
+        skipFall = false;
     }
 
     /// <summary>埋まらない場所以外の、掘った場所をすべて、いますぐ埋める。</summary>
